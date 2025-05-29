@@ -166,7 +166,7 @@ export class FlexQueryParser {
     public parse(fileData: string) {
         const xmlData = parser.parse(fileData, this.options);
         const size = fileData.length / 1024 / 1024;
-        let winners = 0,
+        const winners = 0,
             losers = 0,
             pnl = 0,
             totalCommission = 0,
