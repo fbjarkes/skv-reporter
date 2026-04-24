@@ -6,6 +6,7 @@
         "dev": "next dev",
         "build": "next build",
         "start": "next start",
+        "generate-sru": "ts-node scripts/generate-sru.ts",
         "test": "mocha -r ts-node/register src/**/*.test.ts",
         "coverage": "nyc --check-coverage --lines=70 mocha -r ts-node/register src/**/*.test.ts",
         "lint": "eslint src/**/*.ts",

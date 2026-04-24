@@ -21,7 +21,9 @@ export const logger = createLogger({
         format.printf(
             (info) =>
                 `${info.timestamp}: [${info.level}] ${JSON.stringify(info.message, null, 0)} ${
-                    Object.keys(info.metadata).length !== 0 ? '\n' + JSON.stringify(info.metadata, null, 2) : ''
+                    Object.keys(info.metadata as object).length !== 0
+                        ? '\n' + JSON.stringify(info.metadata, null, 2)
+                        : ''
                 }`,
         ),
     ),

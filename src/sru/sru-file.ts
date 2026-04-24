@@ -191,7 +191,9 @@ export class SRUFile {
             let paid, received;
 
             if (this.sruInfo?.taxYear && this.sruInfo?.taxYear !== Number(trade.exitDateTime.substring(0, 4))) {
-                throw new Error(`Unexpected statement for tax year '${this.sruInfo?.taxYear}' in trade '${trade}'`);
+                throw new Error(
+                    `Tax year mismatch: SRU tax year ${this.sruInfo?.taxYear} does not match trade exit year ${trade.exitDateTime} for trade ${trade}`,
+                );
             }
 
             if (!this.supportedCurrencies.includes(trade.currency)) {
@@ -227,6 +229,10 @@ export class SRUFile {
 
             if (trade.openClose === 'C;O') {
                 logger.info(`Found C;O statement: ${statement}`);
+            }
+            if (Math.abs(trade.quantity) < 1) {
+                logger.warn(`Trade with quantity < 1: ${trade}. Force setting quantity to 1 in statement.`);
+                statement.quantity = 1;
             }
             if (Math.abs(pnl) < 1) {
                 logger.info(`Skipping trade with < 1SEK: ${statement.toString()}`);
