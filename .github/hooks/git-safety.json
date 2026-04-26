@@ -1,6 +1,6 @@
 {
     "event": "PreToolUse",
     "tool": "execute",
-    "match": { "command": "^git (status|log|diff|branch)" },
+    "match": { "command": "^git (status|log|diff|branch|checkout)" },
     "action": "allow"
 }
