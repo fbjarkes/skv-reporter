@@ -99,180 +99,197 @@ describe('SRU Files', () => {
     });
 
     describe('SRU statements', () => {
-        it('should create valid statement from closing trades', () => {
-            const t1 = new TradeType();
-            t1.exitDateTime = '2021-01-11';
-            t1.symbol = 'SPY';
-            t1.description = 'SPY ETF...';
-            t1.quantity = -10;
-            t1.securityType = 'STK';
-            t1.proceeds = 1000;
-            t1.cost = -900;
-            t1.commission = -1;
-            t1.transactionType = 'ExchTrade';
-            t1.pnl = 99;
-            t1.currency = 'USD';
-            t1.openClose = 'C';
-            const sru = new SRUFile(fxRates, [t1]);
-            const statements = sru.getStatements();
-            expect(statements[0].pnl).to.equal(Math.round(99 * 10));
-            expect(statements[0].paid).to.equal(Math.round(-1 * (-900 - 1) * 10));
-            expect(statements[0].received).to.equal(Math.round(1000 * 10));
+        describe('TYPE_A (STK/OPT/FUT)', () => {
+            it('should create valid statement from closing trades', () => {
+                const t1 = new TradeType();
+                t1.exitDateTime = '2021-01-11';
+                t1.symbol = 'SPY';
+                t1.description = 'SPY ETF...';
+                t1.quantity = -10;
+                t1.securityType = 'STK';
+                t1.proceeds = 1000;
+                t1.cost = -900;
+                t1.commission = -1;
+                t1.transactionType = 'ExchTrade';
+                t1.pnl = 99;
+                t1.currency = 'USD';
+                t1.openClose = 'C';
+                const sru = new SRUFile(fxRates, [t1]);
+                const statements = sru.getStatements();
+                expect(statements[0].pnl).to.equal(Math.round(99 * 10));
+                expect(statements[0].paid).to.equal(Math.round(-1 * (-900 - 1) * 10));
+                expect(statements[0].received).to.equal(Math.round(1000 * 10));
+            });
+
+            it('should create statement for non-USD trade correctly', () => {
+                const expiredOpt = new TradeType();
+                expiredOpt.description = 'OMXS30 MAR15 1565 P';
+                expiredOpt.exitDateTime = '2020-01-10';
+                expiredOpt.quantity = -1;
+                expiredOpt.proceeds = 0;
+                expiredOpt.cost = -1388.5;
+                expiredOpt.securityType = 'OPT';
+                expiredOpt.currency = 'SEK';
+                expiredOpt.pnl = -1398.5;
+                expiredOpt.commission = -10;
+                expiredOpt.transactionType = 'ExchTrade';
+                const sru = new SRUFile(fxRates, [expiredOpt]);
+
+                const statements = sru.getStatements();
+
+                expect(statements[0].pnl).to.equal(-1398);
+                expect(statements[0].paid).to.equal(1398);
+                expect(statements[0].received).to.equal(0);
+            });
+
+            it('should handle short trades correctly', () => {
+                const t1 = new TradeType();
+                t1.currency = 'USD';
+                t1.direction = 'SHORT';
+                t1.exitDateTime = '2017-09-22 14:21';
+                t1.exitPrice = 5.1;
+                t1.pnl = -436.19;
+                t1.cost = 74.9;
+                t1.proceeds = -510;
+                t1.commission = -1.0915;
+                t1.quantity = 1;
+                t1.securityType = 'OPT';
+                t1.symbol = 'APC';
+                t1.transactionType = 'ExchTrade';
+
+                const sru = new SRUFile(fxRates, [t1]);
+                const statements = sru.getStatements();
+                expect(statements[0].pnl).to.equal(-3481);
+                expect(statements[0].quantity).to.equal(1);
+                expect(statements[0].paid).to.equal(4079);
+                expect(statements[0].received).to.equal(598);
+            });
+
+            it('should not create statements for trades with PnL < 1 SEK', () => {
+                const t1 = new TradeType();
+                t1.currency = 'USD';
+                t1.exitDateTime = '2017-09-22 14:21';
+                t1.exitPrice = 0;
+                t1.pnl = 0;
+                t1.cost = -68.59;
+                t1.proceeds = 0;
+                t1.commission = 0;
+                t1.quantity = -1;
+                t1.securityType = 'OPT';
+                t1.symbol = 'IWM';
+                t1.transactionType = 'BookTrade';
+                const t2 = new TradeType();
+                t2.exitDateTime = '2020-01-10';
+                t2.symbol = 'SPY';
+                t2.securityType = 'STK';
+                t2.pnl = 0.1;
+                t2.currency = 'USD';
+                const t3 = new TradeType();
+                t3.exitDateTime = '2020-01-10';
+                t3.symbol = 'SPY';
+                t3.securityType = 'STK';
+                t3.pnl = 0.2;
+                t3.currency = 'USD';
+
+                const sru = new SRUFile(fxRates, [t1, t2, t3]);
+                const statements = sru.getStatements();
+                expect(statements).to.be.of.length(1);
+            });
+
+            it('should throw error when including trade dates for wrong tax year', () => {
+                const t1 = new TradeType();
+                t1.exitDateTime = '2020-01-10';
+                t1.symbol = 'SPY';
+                t1.securityType = 'STK';
+                t1.pnl = 1;
+                const t2 = new TradeType();
+                t2.exitDateTime = '2021-01-10';
+                t2.symbol = 'SPY';
+                t2.securityType = 'STK';
+                t2.pnl = 1;
+
+                const sru = new SRUFile(fxRates, [t1, t2], { taxYear: 2021 });
+                expect(() => sru.getStatements()).to.throw(/Tax year mismatch/);
+            });
+            it('should throw error when missing FX rate for trade which must be converted', () => {
+                const t1 = new TradeType();
+                t1.exitDateTime = '2020-01-10';
+                t1.symbol = 'SPY';
+                t1.securityType = 'STK';
+                t1.pnl = 1;
+                t1.currency = 'USD';
+                const t2 = new TradeType();
+                t2.exitDateTime = '2020-01-11';
+                t2.symbol = 'SPY';
+                t2.securityType = 'STK';
+                t2.pnl = 1;
+                t2.currency = 'USD';
+                const sru = new SRUFile(fxRates, [t1, t2]);
+                expect(() => sru.getStatements()).to.throw('Missing USD/SEK rate for 2020-01-11');
+            });
+            it('should throw error for unsupported trade currency', () => {
+                const t1 = new TradeType();
+                t1.exitDateTime = '2020-01-10';
+                t1.symbol = 'BMW';
+                t1.securityType = 'STK';
+                t1.pnl = 1;
+                t1.currency = 'EUR';
+                const sru = new SRUFile(fxRates, [t1]);
+                expect(() => sru.getStatements()).to.throw(/Unsupported currency 'EUR'/);
+            });
+            it('should handle "C;O" trades correctly', () => {
+                const t1 = new TradeType('M2KU1', -1, 2219.2, 0, '2021-01-11', '2021-01-11');
+                t1.openClose = 'O';
+                t1.securityType = 'FUT';
+                t1.cost = -11095.48;
+                t1.commission = -0.52;
+                t1.proceeds = -11096;
+                t1.pnl = 0;
+                t1.currency = 'USD';
+                const t2 = new TradeType('M2KU1', 2, 0, 2240.5, '2021-01-11', '2021-01-11');
+                t2.openClose = 'C;O';
+                t2.securityType = 'FUT';
+                t2.cost = 11095.48;
+                t2.commission = -1.04;
+                t2.proceeds = -22405;
+                t2.pnl = -107.54;
+                t2.direction = 'SHORT';
+                t2.currency = 'USD';
+                const t3 = new TradeType('M2KU1', -1, 0, 2232, '2021-01-11', '2021-01-11');
+                t3.openClose = 'C';
+                t3.securityType = 'FUT';
+                t3.cost = -11203.02;
+                t3.commission = -0.52;
+                t3.proceeds = 11160;
+                t3.pnl = -43.54;
+                t3.direction = 'LONG';
+                t3.currency = 'USD';
+                const sru = new SRUFile(fxRates, [t1, t2, t3]);
+                const statements = sru.getStatements();
+                expect(statements).to.be.of.length(2);
+                expect(statements[0].pnl).to.equal(Math.round(-107.54 * 10));
+                expect(statements[1].pnl).to.equal(Math.round(-43.54 * 10));
+                // TODO: what should it really be?
+                //expect(statements[0].paid).to.equal(0);
+                //expect(statements[0].proceeds).to.equal(0);
+                //expect(statements[1].paid).to.equal(0);
+                //expect(statements[1].proceeds).to.equal(0);
+            });
         });
 
-        it('should create statement for non-USD trade correctly', () => {
-            const expiredOpt = new TradeType();
-            expiredOpt.description = 'OMXS30 MAR15 1565 P';
-            expiredOpt.exitDateTime = '2020-01-10';
-            expiredOpt.quantity = -1;
-            expiredOpt.proceeds = 0;
-            expiredOpt.cost = -1388.5;
-            expiredOpt.securityType = 'OPT';
-            expiredOpt.currency = 'SEK';
-            expiredOpt.pnl = -1398.5;
-            expiredOpt.commission = -10;
-            expiredOpt.transactionType = 'ExchTrade';
-            const sru = new SRUFile(fxRates, [expiredOpt]);
-
-            const statements = sru.getStatements();
-
-            expect(statements[0].pnl).to.equal(-1398);
-            expect(statements[0].paid).to.equal(1398);
-            expect(statements[0].received).to.equal(0);
-        });
-
-        it('should handle short trades correctly', () => {
-            const t1 = new TradeType();
-            t1.currency = 'USD';
-            t1.direction = 'SHORT';
-            t1.exitDateTime = '2017-09-22 14:21';
-            t1.exitPrice = 5.1;
-            t1.pnl = -436.19;
-            t1.cost = 74.9;
-            t1.proceeds = -510;
-            t1.commission = -1.0915;
-            t1.quantity = 1;
-            t1.securityType = 'OPT';
-            t1.symbol = 'APC';
-            t1.transactionType = 'ExchTrade';
-
-            const sru = new SRUFile(fxRates, [t1]);
-            const statements = sru.getStatements();
-            expect(statements[0].pnl).to.equal(-3481);
-            expect(statements[0].quantity).to.equal(1);
-            expect(statements[0].paid).to.equal(4079);
-            expect(statements[0].received).to.equal(598);
-        });
-
-        it('should not create statements for trades with PnL < 1 SEK', () => {
-            const t1 = new TradeType();
-            t1.currency = 'USD';
-            t1.exitDateTime = '2017-09-22 14:21';
-            t1.exitPrice = 0;
-            t1.pnl = 0;
-            t1.cost = -68.59;
-            t1.proceeds = 0;
-            t1.commission = 0;
-            t1.quantity = -1;
-            t1.securityType = 'OPT';
-            t1.symbol = 'IWM';
-            t1.transactionType = 'BookTrade';
-            const t2 = new TradeType();
-            t2.exitDateTime = '2020-01-10';
-            t2.symbol = 'SPY';
-            t2.securityType = 'STK';
-            t2.pnl = 0.1;
-            t2.currency = 'USD';
-            const t3 = new TradeType();
-            t3.exitDateTime = '2020-01-10';
-            t3.symbol = 'SPY';
-            t3.securityType = 'STK';
-            t3.pnl = 0.2;
-            t3.currency = 'USD';
-
-            const sru = new SRUFile(fxRates, [t1, t2, t3]);
-            const statements = sru.getStatements();
-            expect(statements).to.be.of.length(1);
-        });
-
-        it('should throw error when including trade dates for wrong tax year', () => {
-            const t1 = new TradeType();
-            t1.exitDateTime = '2020-01-10';
-            t1.symbol = 'SPY';
-            t1.securityType = 'STK';
-            t1.pnl = 1;
-            const t2 = new TradeType();
-            t2.exitDateTime = '2021-01-10';
-            t2.symbol = 'SPY';
-            t2.securityType = 'STK';
-            t2.pnl = 1;
-
-            const sru = new SRUFile(fxRates, [t1, t2], { taxYear: 2021 });
-            expect(() => sru.getStatements()).to.throw(/Tax year mismatch/);
-        });
-        it('should throw error when missing FX rate for trade which must be converted', () => {
-            const t1 = new TradeType();
-            t1.exitDateTime = '2020-01-10';
-            t1.symbol = 'SPY';
-            t1.securityType = 'STK';
-            t1.pnl = 1;
-            t1.currency = 'USD';
-            const t2 = new TradeType();
-            t2.exitDateTime = '2020-01-11';
-            t2.symbol = 'SPY';
-            t2.securityType = 'STK';
-            t2.pnl = 1;
-            t2.currency = 'USD';
-            const sru = new SRUFile(fxRates, [t1, t2]);
-            expect(() => sru.getStatements()).to.throw('Missing USD/SEK rate for 2020-01-11');
-        });
-        it('should throw error for unsupported trade currency', () => {
-            const t1 = new TradeType();
-            t1.exitDateTime = '2020-01-10';
-            t1.symbol = 'BMW';
-            t1.securityType = 'STK';
-            t1.pnl = 1;
-            t1.currency = 'EUR';
-            const sru = new SRUFile(fxRates, [t1]);
-            expect(() => sru.getStatements()).to.throw(/Unsupported currency 'EUR'/);
-        });
-        it('should handle "C;O" trades correctly', () => {
-            const t1 = new TradeType('M2KU1', -1, 2219.2, 0, '2021-01-11', '2021-01-11');
-            t1.openClose = 'O';
-            t1.securityType = 'FUT';
-            t1.cost = -11095.48;
-            t1.commission = -0.52;
-            t1.proceeds = -11096;
-            t1.pnl = 0;
-            t1.currency = 'USD';
-            const t2 = new TradeType('M2KU1', 2, 0, 2240.5, '2021-01-11', '2021-01-11');
-            t2.openClose = 'C;O';
-            t2.securityType = 'FUT';
-            t2.cost = 11095.48;
-            t2.commission = -1.04;
-            t2.proceeds = -22405;
-            t2.pnl = -107.54;
-            t2.direction = 'SHORT';
-            t2.currency = 'USD';
-            const t3 = new TradeType('M2KU1', -1, 0, 2232, '2021-01-11', '2021-01-11');
-            t3.openClose = 'C';
-            t3.securityType = 'FUT';
-            t3.cost = -11203.02;
-            t3.commission = -0.52;
-            t3.proceeds = 11160;
-            t3.pnl = -43.54;
-            t3.direction = 'LONG';
-            t3.currency = 'USD';
-            const sru = new SRUFile(fxRates, [t1, t2, t3]);
-            const statements = sru.getStatements();
-            expect(statements).to.be.of.length(2);
-            expect(statements[0].pnl).to.equal(Math.round(-107.54 * 10));
-            expect(statements[1].pnl).to.equal(Math.round(-43.54 * 10));
-            // TODO: what should it really be?
-            //expect(statements[0].paid).to.equal(0);
-            //expect(statements[0].proceeds).to.equal(0);
-            //expect(statements[1].paid).to.equal(0);
-            //expect(statements[1].proceeds).to.equal(0);
+        describe('TYPE_C (Cash)', () => {
+            it('should load initial values from positions file', () => {
+                // throw not implemented
+                throw new Error('Not implemented');
+            });
+            it('should process cum. cost, cum. cty and avg. price from buy trade', () => {
+                // throw not implemented
+                throw new Error('Not implemented');
+            });
+            it('should create valid statement from sell trade', () => {
+                // throw not implemented
+                throw new Error('Not implemented');
+            });
         });
     });
 

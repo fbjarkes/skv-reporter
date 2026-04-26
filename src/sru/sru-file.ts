@@ -272,6 +272,8 @@ export class SRUFile {
             `Generating SRU packages for ${allStatements.length} statements with ${this.statementsPerFile} statements per file`,
         );
 
+        // TODO: in order to reduce number of K4Forms, start with a new K4Form and just pick from statements until empty,
+        // e.g. for each new K4Form pick next available 9 TYPE_A and 7 TYPE_C etc.
         const packages = chunk(allStatements, this.statementsPerFile).map((statements: Statement[]) => {
             const forms: K4Form[] = [];
             let page = 1;
