@@ -5,6 +5,7 @@ import { K4Form } from '../types/k4-form';
 import { TradeType } from '../types/trade';
 import { generateBlanketterFileData, isCommodityFuture, SRUFile, SRUInfo } from './sru-file';
 import { K4_SEC_TYPE, K4_TYPE, Statement } from '../types/statement';
+import { exec } from 'child_process';
 
 chai.use(chaiAsPromised);
 
@@ -279,16 +280,129 @@ describe('SRU Files', () => {
 
         describe('TYPE_C (Cash)', () => {
             it('should load initial values from positions file', () => {
-                // throw not implemented
-                throw new Error('Not implemented');
+                // TODO: Use cash_positions.csv to initialize open cash position and then apply trades (based on cash_trade1.xml)
+                //ASSET, ACCOUNT, YEAR, CUM_QTY, CUM_COST, AVG_COST, COMMENT
+                //USD_SEK, U001, 2024, 500, 10000, 20, "Initial value for trade1.xml test cash trades 500 @ 20.0 USD/SEK"
+                const cashPositions = [
+                    {
+                        asset: 'USD/SEK',
+                        account: 'U001',
+                        year: 2024,
+                        cumQty: 500,
+                        cumCost: 10000,
+                        avgCost: 20,
+                    },
+                ];
+
+                const trades = [];
+                const sru = new SRUFile(fxRates, trades, cashPositions);
+                const statements = sru.getStatements();
+                // Should have no statements, i.e. no SELL trades
+                expect(statements).to.be.empty;
+                // TODO: assert Cum. Qty, Cum. Cost and Avg. Price
+                // CumQty=500
+                // CumCost=10000
+                // AvgPrice=20.0
             });
             it('should process cum. cost, cum. cty and avg. price from buy trade', () => {
-                // throw not implemented
-                throw new Error('Not implemented');
+                const args1 = {
+                    symbol: 'USD/SEK',
+                    side: 'BUY',
+                    quantity: 500,
+                    price: 20.0,
+                    proceeds: -10000,
+                    commission: -20,
+                    dateTime: '2025-01-15 12:00:00',
+                    securityType: 'CASH',
+                };
+                const args2 = {
+                    symbol: 'USD/SEK',
+                    side: 'BUY',
+                    quantity: 500,
+                    price: 10.0,
+                    proceeds: -5000,
+                    commission: -20,
+                    dateTime: '2025-01-15 13:00:00',
+                    securityType: 'CASH',
+                };
+                const cashPositions = [
+                    {
+                        asset: 'USD/SEK',
+                        account: 'U001',
+                        year: 2024,
+                        cumQty: 0,
+                        cumCost: 0,
+                        avgCost: 0,
+                    },
+                ];
+                //const t1 = new CashType()
+                const trades = [];
+                const sru = new SRUFile(fxRates, trades, cashPositions);
+                const statements = sru.getStatements();
+                // Should have no statements, i.e. no SELL trades
+                expect(statements).to.be.empty;
+                // TODO: assert Cum. Qty, Cum. Cost and Avg. Price
+                // CumQty=1000
+                // CumCost=15004 (proceeds + comm.)
+                // AvgPrice=15.004
             });
             it('should create valid statement from sell trade', () => {
-                // throw not implemented
-                throw new Error('Not implemented');
+                // Use cash_trade2.xml. Note: commission is based on USDSEK 10.0 for simplicity (fxToRateBase=0.1)
+                const args1 = {
+                    symbol: 'USD/SEK',
+                    side: 'BUY',
+                    quantity: 500,
+                    price: 20.0,
+                    proceeds: -10000,
+                    commission: -20,
+                    dateTime: '2025-01-15 12:00:00',
+                    securityType: 'CASH',
+                };
+                const args2 = {
+                    symbol: 'USD/SEK',
+                    side: 'BUY',
+                    quantity: 500,
+                    price: 19.5,
+                    proceeds: -9750,
+                    commission: -20,
+                    dateTime: '2025-01-15 13:00:00',
+                    securityType: 'CASH',
+                };
+                const args3 = {
+                    symbol: 'USD/SEK',
+                    side: 'SELL',
+                    quantity: -1000,
+                    price: 19.0,
+                    proceeds: 10000,
+                    commission: -20,
+                    dateTime: '2025-06-18 13:00:00',
+                    securityType: 'CASH',
+                };
+                const cashPositions = [
+                    {
+                        asset: 'USD/SEK',
+                        account: 'U001',
+                        year: 2024,
+                        cumQty: 0,
+                        cumCost: 0,
+                        avgCost: 0,
+                    },
+                ];
+
+                const trades = [];
+                const sru = new SRUFile(fxRates, trades, cashPositions);
+                const statements = sru.getStatements();
+
+                //assert 1 statement
+                expect(statements).to.have.lengthOf(1);
+                const stmt = statements[0];
+                //assert date, quantity, proceeds, cost, pnl
+                expect(stmt.date).to.equal('2025-06-18');
+                expect(stmt.symbol).to.equal('USD/SEK');
+                expect(stmt.quantity).to.equal(1000);
+                expect(stmt.received).to.equal(19000);
+                expect(stmt.paid).to.equal(19810);
+                expect(stmt.pnl).to.equal(-810);
             });
         });
     });
