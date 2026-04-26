@@ -208,7 +208,7 @@ describe('SRU Files', () => {
             t2.pnl = 1;
 
             const sru = new SRUFile(fxRates, [t1, t2], { taxYear: 2021 });
-            expect(() => sru.getStatements()).to.throw(/Unexpected statement for tax year '2021'/);
+            expect(() => sru.getStatements()).to.throw(/Tax year mismatch/);
         });
         it('should throw error when missing FX rate for trade which must be converted', () => {
             const t1 = new TradeType();
