@@ -19,7 +19,7 @@ export const logger = createLogger({
         format.label({ label: 'FILE' }),
         format.metadata({ fillExcept: ['message', 'level', 'timestamp', 'label'] }),
         format.printf(
-            (info) =>
+            (info: any) =>
                 `${info.timestamp}: [${info.level}] ${JSON.stringify(info.message, null, 0)} ${
                     Object.keys(info.metadata).length !== 0 ? '\n' + JSON.stringify(info.metadata, null, 2) : ''
                 }`,

@@ -3,6 +3,7 @@ import format from 'date-fns/format';
 import chaiAsPromised from 'chai-as-promised';
 import { K4Form } from '../types/k4-form';
 import { TradeType } from '../types/trade';
+import { CashType } from '../types/cash';
 import { SRUFile, SRUInfo } from './sru-file';
 import { K4_TYPE, Statement } from '../types/statement';
 
@@ -280,5 +281,147 @@ describe('SRU Files', () => {
         });
         
         it('should calculate totals for each type');
+    });
+
+    describe('TYPE_C Cash trades (Average Cost Method)', () => {
+
+        const _createCash = (symbol: string, qty: number, price: number, commission = 0, dateTime = '2021-01-10'): CashType => {
+            return new CashType(symbol, qty, price, commission, dateTime);
+        };
+
+        it('should track cumulative position after two buys', () => {
+            // Buy 1000 USD @ 9.0 SEK → cumCost=9000
+            // Buy 1000 USD @ 10.0 SEK → cumCost=19000, avgCost=9.5
+            const buy1 = _createCash('USD', 1000, 9.0);
+            const buy2 = _createCash('USD', 1000, 10.0);
+            const sru = new SRUFile(new Map(), [], undefined, [buy1, buy2]);
+
+            const pos = sru.getCashPosition('USD');
+            expect(pos).to.not.be.undefined;
+            expect(pos!.cumulativeQty).to.equal(2000);
+            expect(pos!.cumulativeCost).to.equal(19000);
+            expect(pos!.averageCost).to.equal(9.5);
+        });
+
+        it('should include commission in cost when buying', () => {
+            // Buy 1000 USD @ 9.0 SEK with 10 SEK commission → cumCost=9010
+            const buy = _createCash('USD', 1000, 9.0, 10);
+            const sru = new SRUFile(new Map(), [], undefined, [buy]);
+
+            const pos = sru.getCashPosition('USD');
+            expect(pos!.cumulativeCost).to.equal(9010);
+            expect(pos!.cumulativeQty).to.equal(1000);
+            expect(pos!.averageCost).to.equal(9.01);
+        });
+
+        it('should reduce position correctly after a sell', () => {
+            // Buy 2000 USD @ 9.5 avg, then sell 1000 USD
+            // Remaining: 1000 USD @ 9.5 avgCost, cumCost=9500
+            const buy1 = _createCash('USD', 1000, 9.0);
+            const buy2 = _createCash('USD', 1000, 10.0);
+            const sell = _createCash('USD', -1000, 11.0);
+            const sru = new SRUFile(new Map(), [], undefined, [buy1, buy2, sell]);
+
+            const pos = sru.getCashPosition('USD');
+            expect(pos!.cumulativeQty).to.equal(1000);
+            expect(pos!.cumulativeCost).to.be.closeTo(9500, 0.01);
+            expect(pos!.averageCost).to.be.closeTo(9.5, 0.001);
+        });
+
+        it('should calculate PnL correctly for a sell using average cost', () => {
+            // Buy 1000 @ 9.0 + Buy 1000 @ 10.0 → avgCost=9.5
+            // Sell 1000 @ 11.0 → received=11000, paid=9500, pnl=1500
+            const buy1 = _createCash('USD', 1000, 9.0);
+            const buy2 = _createCash('USD', 1000, 10.0);
+            const sell = _createCash('USD', -1000, 11.0);
+            const sru = new SRUFile(new Map(), [], undefined, [buy1, buy2, sell]);
+
+            const statements = sru.getCashStatements();
+            expect(statements).to.have.length(1);
+            expect(statements[0].type).to.equal(K4_TYPE.TYPE_C);
+            expect(statements[0].quantity).to.equal(1000);
+            expect(statements[0].received).to.equal(11000);
+            expect(statements[0].paid).to.equal(9500);
+            expect(statements[0].pnl).to.equal(1500);
+        });
+
+        it('should deduct commission from proceeds when selling', () => {
+            // Buy 1000 @ 9.0, sell 1000 @ 11.0 with 10 SEK commission
+            // received=11000-10=10990, paid=9000, pnl=1990
+            const buy = _createCash('USD', 1000, 9.0);
+            const sell = _createCash('USD', -1000, 11.0, 10);
+            const sru = new SRUFile(new Map(), [], undefined, [buy, sell]);
+
+            const statements = sru.getCashStatements();
+            expect(statements[0].received).to.equal(10990);
+            expect(statements[0].paid).to.equal(9000);
+            expect(statements[0].pnl).to.equal(1990);
+        });
+
+        it('should produce two statements for two separate sells', () => {
+            // Buy 2000 @ avg 9.5, sell 1000 @ 11.0 → pnl=1500
+            // Buy 500 more @ 12.0 → cumQty=1500, cumCost=9500+6000=15500, avg≈10.333
+            // Sell 500 @ 13.0 → received=6500, paid=500*10.333≈5167, pnl≈1333
+            const buy1 = _createCash('USD', 1000, 9.0, 0, '2021-01-01');
+            const buy2 = _createCash('USD', 1000, 10.0, 0, '2021-01-02');
+            const sell1 = _createCash('USD', -1000, 11.0, 0, '2021-01-03');
+            const buy3 = _createCash('USD', 500, 12.0, 0, '2021-01-04');
+            const sell2 = _createCash('USD', -500, 13.0, 0, '2021-01-05');
+            const sru = new SRUFile(new Map(), [], undefined, [buy1, buy2, sell1, buy3, sell2]);
+
+            const statements = sru.getCashStatements();
+            expect(statements).to.have.length(2);
+            expect(statements[0].pnl).to.equal(1500);
+            // After sell1: remaining 1000 USD @ 9.5 avg (cost=9500)
+            // After buy3: 1500 USD, cost=9500+6000=15500, avg=15500/1500≈10.333...
+            // sell2: paid=round(500*15500/1500)=round(5166.67)=5167, received=6500, pnl=1333
+            expect(statements[1].paid).to.equal(5167);
+            expect(statements[1].received).to.equal(6500);
+            expect(statements[1].pnl).to.equal(1333);
+        });
+
+        it('should not create statement when PnL is less than 1 SEK', () => {
+            // Buy 1000 @ 9.0, sell 1000 @ 9.0 → pnl=0
+            const buy = _createCash('USD', 1000, 9.0);
+            const sell = _createCash('USD', -1000, 9.0);
+            const sru = new SRUFile(new Map(), [], undefined, [buy, sell]);
+
+            const statements = sru.getCashStatements();
+            expect(statements).to.have.length(0);
+        });
+
+        it('should handle an initial position set via addInitialPosition', () => {
+            // Initial position: 500 USD @ 8.0 avg (cost=4000)
+            // Buy 500 USD @ 9.0 → cumQty=1000, cumCost=8500, avg=8.5
+            // Sell 500 USD @ 10.0 → received=5000, paid=500*8.5=4250, pnl=750
+            const buy = _createCash('USD', 500, 9.0);
+            const sell = _createCash('USD', -500, 10.0);
+            const sru = new SRUFile(new Map(), [], undefined, [buy, sell]);
+            sru.addInitialPosition('USD', 500, 4000);
+
+            const pos = sru.getCashPosition('USD');
+            expect(pos!.cumulativeQty).to.equal(500);
+            expect(pos!.cumulativeCost).to.be.closeTo(4250, 0.01);
+
+            const statements = sru.getCashStatements();
+            expect(statements).to.have.length(1);
+            expect(statements[0].paid).to.equal(4250);
+            expect(statements[0].received).to.equal(5000);
+            expect(statements[0].pnl).to.equal(750);
+        });
+
+        it('should track independent positions for different symbols', () => {
+            const buyUSD = _createCash('USD', 1000, 9.0);
+            const buyEUR = _createCash('EUR', 500, 10.5);
+            const sru = new SRUFile(new Map(), [], undefined, [buyUSD, buyEUR]);
+
+            const usdPos = sru.getCashPosition('USD');
+            const eurPos = sru.getCashPosition('EUR');
+
+            expect(usdPos!.cumulativeQty).to.equal(1000);
+            expect(usdPos!.cumulativeCost).to.equal(9000);
+            expect(eurPos!.cumulativeQty).to.equal(500);
+            expect(eurPos!.cumulativeCost).to.equal(5250);
+        });
     });
 });

@@ -1,6 +1,7 @@
 import { chunk } from 'lodash';
 import { K4_TYPE, Statement } from "../types/statement";
 import { TradeType } from "../types/trade";
+import { CashType, CashPosition } from "../types/cash";
 import { logger } from '../logging';
 import { K4Form } from "../types/k4-form";
 import format from "date-fns/format";
@@ -21,13 +22,90 @@ export class SRUFile {
     sruInfo?: SRUInfo;
     title = 'SKV-Reporter';
     trades: TradeType[];
+    cashTrades: CashType[];
     fxRates: Map<string, Map<string, number>>;
     createDate = new Date();
+    private initialCashPositions: Map<string, CashPosition> = new Map();
     
-    constructor(fxRates: Map<string, Map<string, number>>, trades: TradeType[], data?: SRUInfo) {
+    constructor(fxRates: Map<string, Map<string, number>>, trades: TradeType[], data?: SRUInfo, cashTrades: CashType[] = []) {
         this.sruInfo = data;
         this.fxRates = fxRates;
         this.trades = trades;
+        this.cashTrades = cashTrades;
+    }
+
+    /**
+     * Set an initial position for a symbol (e.g. loaded from positions.csv).
+     */
+    addInitialPosition(symbol: string, qty: number, cost: number): void {
+        this.initialCashPositions.set(symbol, new CashPosition(symbol, qty, cost));
+    }
+
+    /**
+     * Returns the cash position for a symbol after processing all cash trades.
+     * Primarily used for validating intermediate calculations in tests.
+     */
+    getCashPosition(symbol: string): CashPosition | undefined {
+        const [positions] = this.processCashTradesInternal();
+        return positions.get(symbol);
+    }
+
+    /**
+     * Process all cash trades using the Average Cost Method and return TYPE_C statements
+     * for each closing (sell) trade.
+     */
+    getCashStatements(): Statement[] {
+        const [, sellSnapshots] = this.processCashTradesInternal();
+        const statements: Statement[] = [];
+        sellSnapshots.forEach(({ trade, avgCost }) => {
+            const saleQty = Math.abs(trade.quantity);
+            const received = Math.round(saleQty * trade.price - trade.commission);
+            const paid = Math.round(saleQty * avgCost);
+            const pnl = received - paid;
+            if (Math.abs(pnl) >= 1) {
+                statements.push(
+                    new Statement(saleQty, trade.symbol, paid, received, pnl, K4_TYPE.TYPE_C, trade.dateTime)
+                );
+            }
+        });
+        return statements;
+    }
+
+    private getInitialPositionsCopy(): Map<string, CashPosition> {
+        const positions = new Map<string, CashPosition>();
+        this.initialCashPositions.forEach((pos, symbol) => {
+            positions.set(symbol, new CashPosition(symbol, pos.cumulativeQty, pos.cumulativeCost));
+        });
+        return positions;
+    }
+
+    private processCashTradesInternal(): [Map<string, CashPosition>, { trade: CashType; avgCost: number }[]] {
+        const positions = this.getInitialPositionsCopy();
+        const sellSnapshots: { trade: CashType; avgCost: number }[] = [];
+
+        this.cashTrades.forEach((trade: CashType) => {
+            const symbol = trade.symbol;
+            if (!positions.has(symbol)) {
+                positions.set(symbol, new CashPosition(symbol));
+            }
+            const pos = positions.get(symbol)!;
+
+            if (trade.quantity > 0) {
+                // Buy: accumulate cost and quantity
+                const totalCost = trade.quantity * trade.price + trade.commission;
+                pos.cumulativeCost += totalCost;
+                pos.cumulativeQty += trade.quantity;
+            } else if (trade.quantity < 0) {
+                // Sell: capture average cost before reducing the position
+                const saleQty = Math.abs(trade.quantity);
+                const avgCost = pos.averageCost;
+                sellSnapshots.push({ trade, avgCost });
+                pos.cumulativeQty -= saleQty;
+                pos.cumulativeCost = pos.cumulativeQty * avgCost;
+            }
+        });
+
+        return [positions, sellSnapshots];
     }
 
     toK4Type(trade: TradeType): K4_TYPE {
@@ -113,7 +191,7 @@ export class SRUFile {
         const files: string[][] = []
         
         const statementChunks = SRUFile.splitStatements(this.getStatements());
-        const formChunks = chunk(statementChunks, 400);
+        const formChunks = chunk(statementChunks, 400) as Statement[][][];
 
         formChunks.forEach(chunks => {
             const forms: K4Form[] = [];        
