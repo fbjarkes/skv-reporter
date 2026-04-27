@@ -59,6 +59,39 @@ export class K4Form {
         lines.push(`#UPPGIFT 3301 ${costSum}`);
         lines.push(`#UPPGIFT 3304 ${profitSum}`);
         lines.push(`#UPPGIFT 3305 ${lossSum}`);
+
+        let count_type_c = 0;
+        let receivedSumC = 0;
+        let costSumC = 0;
+        let profitSumC = 0;
+        let lossSumC = 0;
+
+        this.statements.filter((s: Statement) => s.type === K4_TYPE.TYPE_C).forEach((s: Statement) => {
+            lines.push(`#UPPGIFT 34${count_type_c}0 ${s.quantity}`);
+            lines.push(`#UPPGIFT 34${count_type_c}1 ${s.symbol}`);
+            lines.push(`#UPPGIFT 34${count_type_c}2 ${s.received}`);
+            lines.push(`#UPPGIFT 34${count_type_c}3 ${s.paid}`);
+
+            if (s.pnl > 0) {
+                lines.push(`#UPPGIFT 34${count_type_c}4 ${s.pnl}`);
+                profitSumC += s.pnl;
+            } else {
+                lines.push(`#UPPGIFT 34${count_type_c}5 ${Math.abs(s.pnl)}`);
+                lossSumC += Math.abs(s.pnl);
+            }
+            receivedSumC += s.received;
+            costSumC += s.paid;
+
+            count_type_c++;
+            if (count_type_c > 7) {
+                throw new Error('Too many TYPE C records!');
+            }
+        });
+
+        lines.push(`#UPPGIFT 3500 ${receivedSumC}`);
+        lines.push(`#UPPGIFT 3501 ${costSumC}`);
+        lines.push(`#UPPGIFT 3504 ${profitSumC}`);
+        lines.push(`#UPPGIFT 3505 ${lossSumC}`);
         lines.push(`#BLANKETTSLUT`);
         return lines;
     }
