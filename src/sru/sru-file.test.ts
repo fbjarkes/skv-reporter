@@ -279,6 +279,84 @@ describe('SRU Files', () => {
 
         });
         
+        it('should add TYPE_C statements', () => {
+            // Use same trade values as the TYPE_A test, but with TYPE_C statements
+            const received_spy = Math.round(1001 * 9.1); // 9109
+            const cost_spy = Math.round(901 * 9.1);      // 8199
+            const pnl_spy = Math.round(100 * 9.1);       // 910
+
+            const received_qqq = Math.round(901 * 9.1);  // 8199
+            const cost_qqq = Math.round(1001 * 9.1);     // 9109
+            const pnl_qqq = -Math.round(100 * 9.1);      // -910
+
+            // 6 statements: t1, t2, t1, t2, t1, t2 (3 profit SPY, 3 loss QQQ)
+            const s1 = new Statement(100, 'SPY ...', cost_spy, received_spy, pnl_spy, K4_TYPE.TYPE_C, '2020-01-10');
+            const s2 = new Statement(100, 'QQQ ...', cost_qqq, received_qqq, pnl_qqq, K4_TYPE.TYPE_C, '2020-01-10');
+
+            const totalProceeds = 3 * received_spy + 3 * received_qqq;
+            const totalCost = 3 * cost_spy + 3 * cost_qqq;
+            const totalProfit = 3 * pnl_spy;
+            const totalLoss = 3 * Math.abs(pnl_qqq);
+
+            const statements = [s1, s2, s1, s2, s1, s2];
+            const form = new K4Form('K4-2021P4', 1, '19900101-1234', new Date(2021, 0, 1, 14, 30, 0), statements);
+
+            const expectedLines = [
+                '#BLANKETT K4-2021P4',
+                '#IDENTITET 19900101-1234 20210101 143000',
+                '#UPPGIFT 7014 1',
+                // S1 (SPY, profit)
+                '#UPPGIFT 3310 100',
+                '#UPPGIFT 3311 SPY ...',
+                '#UPPGIFT 3312 9109',
+                '#UPPGIFT 3313 8199',
+                '#UPPGIFT 3314 910',
+                // S2 (QQQ, loss)
+                '#UPPGIFT 3320 100',
+                '#UPPGIFT 3321 QQQ ...',
+                '#UPPGIFT 3322 8199',
+                '#UPPGIFT 3323 9109',
+                '#UPPGIFT 3325 910',
+                // S1
+                '#UPPGIFT 3330 100',
+                '#UPPGIFT 3331 SPY ...',
+                '#UPPGIFT 3332 9109',
+                '#UPPGIFT 3333 8199',
+                '#UPPGIFT 3334 910',
+                // S2
+                '#UPPGIFT 3340 100',
+                '#UPPGIFT 3341 QQQ ...',
+                '#UPPGIFT 3342 8199',
+                '#UPPGIFT 3343 9109',
+                '#UPPGIFT 3345 910',
+                // S1
+                '#UPPGIFT 3350 100',
+                '#UPPGIFT 3351 SPY ...',
+                '#UPPGIFT 3352 9109',
+                '#UPPGIFT 3353 8199',
+                '#UPPGIFT 3354 910',
+                // S2
+                '#UPPGIFT 3360 100',
+                '#UPPGIFT 3361 QQQ ...',
+                '#UPPGIFT 3362 8199',
+                '#UPPGIFT 3363 9109',
+                '#UPPGIFT 3365 910',
+                // TYPE_A summaries (0 since no TYPE_A statements)
+                '#UPPGIFT 3300 0',
+                '#UPPGIFT 3301 0',
+                '#UPPGIFT 3304 0',
+                '#UPPGIFT 3305 0',
+                // TYPE_C summaries
+                `#UPPGIFT 3400 ${totalProceeds}`,
+                `#UPPGIFT 3401 ${totalCost}`,
+                `#UPPGIFT 3403 ${totalProfit}`,
+                `#UPPGIFT 3404 ${totalLoss}`,
+                '#BLANKETTSLUT'
+            ];
+            const lines = form.generateLines();
+            expect(lines).to.have.members(expectedLines);
+        });
+
         it('should calculate totals for each type');
     });
 });
