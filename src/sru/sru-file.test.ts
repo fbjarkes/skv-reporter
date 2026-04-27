@@ -272,6 +272,10 @@ describe('SRU Files', () => {
                  `#UPPGIFT 3301 ${totalCost}`,                 
                  `#UPPGIFT 3304 ${totalProfit}`,
                  `#UPPGIFT 3305 ${totalLoss}`,
+                 '#UPPGIFT 3500 0',
+                 '#UPPGIFT 3501 0',
+                 '#UPPGIFT 3504 0',
+                 '#UPPGIFT 3505 0',
                  '#BLANKETTSLUT'
             ]
             const lines = form.generateLines();
@@ -280,5 +284,80 @@ describe('SRU Files', () => {
         });
         
         it('should calculate totals for each type');
+    });
+
+    describe('K4 TYPE_C forms', () => {
+        it('should add TYPE_C statements', () => {
+            // 4 profit rows + 2 loss rows = 6 rows total
+            const s1 = new Statement(1000, 'USD', 9000,  11000,  2000, K4_TYPE.TYPE_C, '2021-01-10');
+            const s2 = new Statement(500,  'EUR', 4000,   5000,  1000, K4_TYPE.TYPE_C, '2021-01-10');
+            const s3 = new Statement(200,  'GBP', 1800,   2000,   200, K4_TYPE.TYPE_C, '2021-01-10');
+            const s4 = new Statement(300,  'CHF', 2700,   3000,   300, K4_TYPE.TYPE_C, '2021-01-10');
+            const s5 = new Statement(100,  'JPY', 1500,   1200,  -300, K4_TYPE.TYPE_C, '2021-01-10');
+            const s6 = new Statement(150,  'DKK', 2000,   1850,  -150, K4_TYPE.TYPE_C, '2021-01-10');
+
+            const totalReceived = 11000 + 5000 + 2000 + 3000 + 1200 + 1850;
+            const totalCost     =  9000 + 4000 + 1800 + 2700 + 1500 + 2000;
+            const totalProfit   = 2000 + 1000 + 200 + 300;
+            const totalLoss     = 300 + 150;
+
+            const form = new K4Form('K4-2021P4', 1, '19900101-1234', new Date(2021, 0, 1, 14, 30, 0), [s1, s2, s3, s4, s5, s6]);
+
+            const expectedLines = [
+                '#BLANKETT K4-2021P4',
+                '#IDENTITET 19900101-1234 20210101 143000',
+                '#UPPGIFT 7014 1',
+                // S1 - USD (profit)
+                '#UPPGIFT 3400 1000',
+                '#UPPGIFT 3401 USD',
+                '#UPPGIFT 3402 11000',
+                '#UPPGIFT 3403 9000',
+                '#UPPGIFT 3404 2000',
+                // S2 - EUR (profit)
+                '#UPPGIFT 3410 500',
+                '#UPPGIFT 3411 EUR',
+                '#UPPGIFT 3412 5000',
+                '#UPPGIFT 3413 4000',
+                '#UPPGIFT 3414 1000',
+                // S3 - GBP (profit)
+                '#UPPGIFT 3420 200',
+                '#UPPGIFT 3421 GBP',
+                '#UPPGIFT 3422 2000',
+                '#UPPGIFT 3423 1800',
+                '#UPPGIFT 3424 200',
+                // S4 - CHF (profit)
+                '#UPPGIFT 3430 300',
+                '#UPPGIFT 3431 CHF',
+                '#UPPGIFT 3432 3000',
+                '#UPPGIFT 3433 2700',
+                '#UPPGIFT 3434 300',
+                // S5 - JPY (loss)
+                '#UPPGIFT 3440 100',
+                '#UPPGIFT 3441 JPY',
+                '#UPPGIFT 3442 1200',
+                '#UPPGIFT 3443 1500',
+                '#UPPGIFT 3445 300',
+                // S6 - DKK (loss)
+                '#UPPGIFT 3450 150',
+                '#UPPGIFT 3451 DKK',
+                '#UPPGIFT 3452 1850',
+                '#UPPGIFT 3453 2000',
+                '#UPPGIFT 3455 150',
+                // TYPE_A sums (no TYPE_A statements)
+                '#UPPGIFT 3300 0',
+                '#UPPGIFT 3301 0',
+                '#UPPGIFT 3304 0',
+                '#UPPGIFT 3305 0',
+                // TYPE_C sums
+                `#UPPGIFT 3500 ${totalReceived}`,
+                `#UPPGIFT 3501 ${totalCost}`,
+                `#UPPGIFT 3504 ${totalProfit}`,
+                `#UPPGIFT 3505 ${totalLoss}`,
+                '#BLANKETTSLUT'
+            ];
+
+            const lines = form.generateLines();
+            expect(lines).to.have.members(expectedLines);
+        });
     });
 });

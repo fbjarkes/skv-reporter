@@ -118,8 +118,8 @@ export class SRUFile {
         formChunks.forEach(chunks => {
             const forms: K4Form[] = [];        
         
-            let page = 1
-            chunks.forEach((chunk: Statement[]) => {
+            let page = 1;
+            (chunks as Statement[][]).forEach((chunk: Statement[]) => {
                 const form = new K4Form('K4-2020P4', page++,this.sruInfo?.id || '', this.createDate, chunk);
                 forms.push(form);
             });
