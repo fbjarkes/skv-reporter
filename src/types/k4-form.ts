@@ -83,8 +83,8 @@ export class K4Form {
             costSumC += s.paid;
 
             count_type_c++;
-            if (count_type_c > 8) {
-                throw new Error('Too many TYPE C records!');
+            if (count_type_c > 7) {
+                throw new Error('Too many TYPE C records! Maximum 7 statements allowed.');
             }
         });
 
