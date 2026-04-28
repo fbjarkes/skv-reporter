@@ -3,6 +3,7 @@ import format from 'date-fns/format';
 
 import { K4_SEC_TYPE, K4_TYPE, Statement } from '../types/statement';
 import { TradeType } from '../types/trade';
+import { CashType, CashPosition } from "../types/cash";
 import { K4Form, MAX_TYPE_A_STATEMENTS, MAX_TYPE_C_STATEMENTS, MAX_TYPE_D_STATEMENTS } from '../types/k4-form';
 import { logger } from '../logging';
 
@@ -159,13 +160,16 @@ export class SRUFile {
     maxTypeDStatements: number;
 
     trades: TradeType[];
+    cashTrades: CashType[];
     fxRates: Map<string, Map<string, number>>;
     createDate = new Date();
+    private cashPositions: Map<string, CashPosition> = new Map();
     supportedCurrencies = ['SEK', 'USD'];
 
     constructor(
         fxRates: Map<string, Map<string, number>>,
         trades: TradeType[],
+        cashTrades: CashType[] = [],
         data?: SRUInfo,
         date = new Date(),
         statementsPerFile = 3500, // approx. ~5MB
@@ -176,12 +180,127 @@ export class SRUFile {
         this.sruInfo = data;
         this.fxRates = fxRates;
         this.trades = trades;
+        this.cashTrades = cashTrades;
         this.createDate = date;
         this.statementsPerFile = statementsPerFile;
         this.maxTypeAStatements = maxTypeAStatements;
         this.maxTypeCStatements = maxTypeCStatements;
         this.maxTypeDStatements = maxTypeDStatements;
     }
+    
+    setInitialCashPosition(symbol: string, qty: number, cost: number): void {
+        this.cashPositions.set(symbol, new CashPosition(symbol, qty, cost));
+    }
+
+    getCashPosition(symbol: string): CashPosition | undefined {
+        //const [positions] = this.processCashTradesInternal();
+        return this.cashPositions.get(symbol);
+    }
+
+    getCashStatements(): Statement[] {
+        //const [, sellSnapshots] = this.processCashTradesInternal();
+        const statements: Statement[] = [];
+        let id = 0;
+        this.cashTrades.forEach((trade: CashType) => {
+            if (this.sruInfo?.taxYear && this.sruInfo?.taxYear !== Number(trade.dateTime.substring(0, 4))) {
+                throw new Error(
+                    `Tax year mismatch: SRU tax year ${this.sruInfo?.taxYear} does not match cash trade year ${trade.dateTime} for trade ${trade}`,
+                );
+            }
+            
+            const symbol = trade.symbol;
+            if (!this.cashPositions.has(symbol)) {
+                this.cashPositions.set(symbol, new CashPosition(symbol));
+                logger.info(`${symbol}: Initializing cash position for symbol with 0 qty and 0 cost`);
+            }
+            const pos = this.cashPositions.get(symbol)!;
+
+            //TODO: use field 'buySell' instead of checking?
+            if (trade.quantity > 0) {
+                //NOTE: statements must in SEK so convert all fields used from trade to SEK (if not in SEK already)
+                const totalCost = trade.proceeds + Math.abs(trade.commission); //TODO: convert to sek
+                pos.cumulativeCost += totalCost;
+                pos.cumulativeQty += trade.quantity;
+
+            } else if (trade.quantity < 0) {
+                
+                const saleQty = Math.abs(trade.quantity);
+                const avgCost = pos.averageCost;
+                
+                pos.cumulativeQty -= saleQty;
+                pos.cumulativeCost = pos.cumulativeQty * avgCost; //TODO: or pos.cumulativeCost -= saleQty *avgCost ?
+                                  
+                const received = Math.round(saleQty * trade.price);
+                const receivedSek = received - Math.abs(trade.commission); //TODO: convert to SEK
+                const paid = Math.round(saleQty * avgCost);
+                const pnl = received - paid;
+
+                const symbol = trade.symbol + (trade.transactionType ? ` ${trade.transactionType}` : '');
+
+                const statement = new Statement(
+                    id++,
+                    saleQty,
+                    symbol,
+                    paid,
+                    received,
+                    pnl,
+                    K4_TYPE.TYPE_C,
+                    trade.dateTime,
+                    K4_SEC_TYPE.CASH,
+                );
+
+                if (Math.abs(saleQty) < 1) {
+                    logger.warn(`Cash trade with quantity < 1: ${trade}. Force setting quantity to 1 in statement.`);
+                    statement.quantity = 1;
+                }
+
+                if (Math.abs(pnl) < 1) {
+                    logger.info(`Skipping cash trade with < 1SEK: ${statement.toString()}`);
+                } else {
+                    logger.info(`Adding cash statement: ${statement.toString()}`);
+                    statements.push(statement);
+                }
+            }
+        });
+        return statements;
+    }
+
+    // private getInitialPositionsCopy(): Map<string, CashPosition> {
+    //     const positions = new Map<string, CashPosition>();
+    //     this.initialCashPositions.forEach((pos, symbol) => {
+    //         positions.set(symbol, new CashPosition(symbol, pos.cumulativeQty, pos.cumulativeCost));
+    //     });
+    //     return positions;
+    // }
+
+    // private processCashTradesInternal(): [Map<string, CashPosition>, { trade: CashType; avgCost: number }[]] {
+    //     const positions = this.getInitialPositionsCopy();
+    //     const sellSnapshots: { trade: CashType; avgCost: number }[] = [];
+
+    //     this.cashTrades.forEach((trade: CashType) => {
+    //         const symbol = trade.symbol;
+    //         if (!positions.has(symbol)) {
+    //             positions.set(symbol, new CashPosition(symbol));
+    //         }
+    //         const pos = positions.get(symbol)!;
+
+    //         if (trade.quantity > 0) {
+    //             // Buy: accumulate cost and quantity
+    //             const totalCost = trade.quantity * trade.price + trade.commission;
+    //             pos.cumulativeCost += totalCost;
+    //             pos.cumulativeQty += trade.quantity;
+    //         } else if (trade.quantity < 0) {
+    //             // Sell: capture average cost before reducing the position
+    //             const saleQty = Math.abs(trade.quantity);
+    //             const avgCost = pos.averageCost;
+    //             sellSnapshots.push({ trade, avgCost });
+    //             pos.cumulativeQty -= saleQty;
+    //             pos.cumulativeCost = pos.cumulativeQty * avgCost;
+    //         }
+    //     });
+
+    //     return [positions, sellSnapshots];
+    // }
 
     getStatements(): Statement[] {
         const statements: Statement[] = [];

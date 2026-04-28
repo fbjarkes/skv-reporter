@@ -11,6 +11,7 @@ export enum K4_SEC_TYPE {
     STOCK = 'STOCK',
     OPTION = 'OPTION',
     FUTURE = 'FUTURE',
+    CASH = 'CASH',
     UNKNOWN = 'UNKNOWN',
 }
 
