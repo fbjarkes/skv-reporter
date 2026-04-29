@@ -181,6 +181,33 @@ export class FlexQueryParser {
         // TODO: handle 'xmlData.FlexQueryStatements['count'] > 1
         if (xmlData.FlexQueryResponse.FlexStatements.FlexStatement.Trades.Trade) {
             xmlData.FlexQueryResponse.FlexStatements.FlexStatement.Trades.Trade.forEach((item: FQTrade) => {
+                if (item._assetCategory === 'CASH') {
+                    const t = new TradeType();
+                    t.symbol = item._symbol.replace('.', '/');
+                    t.description = item._description.replace('.', '/');
+                    t.securityType = item._assetCategory;
+                    t.quantity = Number(item._quantity);
+                    t.pnl = Number(item._fifoPnlRealized);
+                    t.proceeds = Number(item._proceeds);
+                    t.cost = Number(item._cost);
+                    t.commission = Number(item._ibCommission);
+                    t.commissionCurrency = item._ibCommissionCurrency;
+                    t.tradeCurrency = item._currency;
+                    t.transactionType = item._transactionType;
+                    t.direction = item._buySell; //TODO: LONG/SHORT or BUY/SELL??
+                    const dateStr = item._dateTime ? item._dateTime.substring(0, 8) : '';
+                    const dateFormatted =
+                        dateStr.length === 8 ? format(parse(dateStr, FQ_DATE_FORMAT, new Date()), DATE_FORMAT) : '';
+                    if (item._buySell === 'SELL') {
+                        t.exitPrice = Number(item._tradePrice);
+                        t.exitDateTime = dateFormatted;
+                    } else {
+                        t.entryPrice = Number(item._tradePrice);
+                        t.entryDateTime = dateFormatted;
+                    }
+                    this.#trades.push(t);
+                    return;
+                }
                 if (
                     item._openCloseIndicator === 'C' ||
                     item._openCloseIndicator === 'O' ||
@@ -207,7 +234,7 @@ export class FlexQueryParser {
                     t.commission = Number(item._ibCommission);
                     t.commissionCurrency = item._ibCommissionCurrency;
                     t.tradeCurrency = item._currency;
-                    t.transactionType = item._assetCategory === 'CASH' ? 'CASH' : item._transactionType;
+                    t.transactionType = item._transactionType;
                     t.openClose = item._openCloseIndicator;
 
                     if (item._openCloseIndicator === 'C' || item._openCloseIndicator === 'C;O') {

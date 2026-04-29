@@ -228,7 +228,7 @@ export class SRUFile {
         let id = 0;
 
         const cashTrades = this.trades.filter(
-            (trade) => trade.transactionType === 'CASH' || trade.securityType === 'CASH',
+            (trade) => trade.securityType === 'CASH',
         );
         cashTrades.forEach((trade: TradeType) => {
             // TODO: direction field uses 'LONG'/'SHORT' (not 'BUY'/'SELL'); replace with `trade.quantity > 0` for entry
@@ -269,7 +269,7 @@ export class SRUFile {
                 const paidSek = _convertCurrency(paid, pos.currency, dateTime) + commissionSek;             
                 const pnl = receivedSek - paidSek;
 
-                const symbol = trade.symbol + (trade.transactionType && trade.transactionType !== 'CASH' ? ` ${trade.transactionType}` : '');
+                const symbol = trade.symbol + (trade.transactionType && trade.securityType !== 'CASH' ? ` ${trade.transactionType}` : '');
 
                 const statement = new Statement(
                     id++,
@@ -303,7 +303,7 @@ export class SRUFile {
         const statements: Statement[] = [];
         let id = 0;
         this.trades
-            .filter((trade: TradeType) => trade.transactionType !== 'CASH')
+            .filter((trade: TradeType) => trade.securityType !== 'CASH')
             .forEach((trade: TradeType) => {
             let rate: number | undefined = 1;
             let paid, received;

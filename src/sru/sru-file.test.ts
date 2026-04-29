@@ -78,7 +78,7 @@ describe('SRU Files', () => {
     };
 
     const _createCashTrade = (init: Partial<TradeType>): TradeType => {
-        return new TradeType({ transactionType: 'CASH', tradeCurrency: 'USD', ...init });
+        return new TradeType({ securityType: 'CASH', tradeCurrency: 'USD', ...init });
     };
 
     it('should create SRU info', () => {
@@ -352,9 +352,9 @@ describe('SRU Files', () => {
             });
 
             it('should create valid statement from sell trade', () => {
-                const t1 = new TradeType({symbol: 'USD/SEK', direction: 'BUY', quantity: 500, entryPrice: 20.0, proceeds: -10000, commission: -2, commissionCurrency: 'USD', tradeCurrency: 'SEK', entryDateTime: '2025-01-15 12:00:00', securityType: 'CASH', transactionType: 'CASH' });
-                const t2 = new TradeType({symbol: 'USD/SEK', direction: 'BUY', quantity: 500, entryPrice: 19.5, proceeds: -9750, commission: -2, commissionCurrency: 'USD', tradeCurrency: 'SEK', entryDateTime: '2025-01-15 13:00:00', securityType: 'CASH', transactionType: 'CASH' });
-                const t3 = new TradeType({symbol: 'USD/SEK', direction: 'SELL', quantity: -1000, exitPrice: 19.0, proceeds: 10000, commission: -2, commissionCurrency: 'USD', tradeCurrency: 'SEK', exitDateTime: '2025-01-16 13:00:00', securityType: 'CASH', transactionType: 'CASH' });
+                const t1 = new TradeType({symbol: 'USD/SEK', direction: 'BUY', quantity: 500, entryPrice: 20.0, proceeds: -10000, commission: -2, commissionCurrency: 'USD', tradeCurrency: 'SEK', entryDateTime: '2025-01-15 12:00:00', securityType: 'CASH' });
+                const t2 = new TradeType({symbol: 'USD/SEK', direction: 'BUY', quantity: 500, entryPrice: 19.5, proceeds: -9750, commission: -2, commissionCurrency: 'USD', tradeCurrency: 'SEK', entryDateTime: '2025-01-15 13:00:00', securityType: 'CASH' });
+                const t3 = new TradeType({symbol: 'USD/SEK', direction: 'SELL', quantity: -1000, exitPrice: 19.0, proceeds: 10000, commission: -2, commissionCurrency: 'USD', tradeCurrency: 'SEK', exitDateTime: '2025-01-16 13:00:00', securityType: 'CASH' });
                  const cashPositions = [
                     new CashPosition({symbol: 'USD/SEK', cumQty: 0, cumCost: 0, currency: 'SEK'}),                    
                 ];
