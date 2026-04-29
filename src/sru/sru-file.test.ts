@@ -18,6 +18,8 @@ describe('SRU Files', () => {
             '2020-01-10': new Map(Object.entries({ 'USD/SEK': 9.1 })),
             '2017-09-22': new Map(Object.entries({ 'USD/SEK': 7.98 })),
             '2025-01-15': new Map(Object.entries({ 'USD/SEK': 10.0 })),
+            '2025-01-16': new Map(Object.entries({ 'USD/SEK': 10.0 })),
+
         }),
     );
 
@@ -334,63 +336,72 @@ describe('SRU Files', () => {
             });
 
             it('should create valid statement from sell trade', () => {
-                // Use cash_trade2.xml. Note: commission is based on USDSEK 10.0 for simplicity (fxToRateBase=0.1)
                 const args1 = {
                     symbol: 'USD/SEK',
                     side: 'BUY',
                     quantity: 500,
                     price: 20.0,
                     proceeds: -10000,
-                    commission: -20,
+                    commission: -2, // use FX Rate 2025-01-15 @ 10 for simplicity
+                    commissionCurrency: 'USD',
                     dateTime: '2025-01-15 12:00:00',
                     securityType: 'CASH',
                 };
+                const t1 = new CashType(args1);
                 const args2 = {
                     symbol: 'USD/SEK',
                     side: 'BUY',
                     quantity: 500,
                     price: 19.5,
                     proceeds: -9750,
-                    commission: -20,
+                    commission: -2, // use FX Rate 2025-01-15 @ 10 for simplicity
+                    commissionCurrency: 'USD',
                     dateTime: '2025-01-15 13:00:00',
                     securityType: 'CASH',
                 };
+                const t2 = new CashType(args2);
                 const args3 = {
                     symbol: 'USD/SEK',
                     side: 'SELL',
                     quantity: -1000,
                     price: 19.0,
                     proceeds: 10000,
-                    commission: -20,
-                    dateTime: '2025-06-18 13:00:00',
+                    commission: -2, // use FX Rate 2025-01-16 @ 10 for simplicity
+                    commissionCurrency: 'USD',
+                    dateTime: '2025-01-16 13:00:00',
                     securityType: 'CASH',
                 };
-                const cashPositions = [
-                    {
-                        asset: 'USD/SEK',
-                        account: 'U001',
-                        year: 2024,
-                        cumQty: 0,
-                        cumCost: 0,
-                        avgCost: 0,
-                    },
+                const t3 = new CashType(args3);
+                 const cashPositions = [
+                    new CashPosition({symbol: 'USD/SEK', cumQty: 0, cumCost: 0, currency: 'SEK'}),                    
                 ];
+                        
+                const sru = new SRUFile(fxRates, [], [t1, t2, t3]);
+                sru.setInitialCashPositions(cashPositions);
 
-                const trades = [];
-                const sru = new SRUFile(fxRates, trades, cashPositions);
-                const statements = sru.getStatements();
+                const statements = sru.getCashStatements();
+                const pos = sru.getCashPosition('USD/SEK');
+
+                // Assert pos is reset to 0 after sell
+                expect(pos).to.not.be.undefined;
+                expect(pos!.cumulativeQty).to.equal(0);
+                expect(pos!.cumulativeCost).to.equal(0);
+                expect(pos!.averageCost).to.equal(0);
 
                 //assert 1 statement
                 expect(statements).to.have.lengthOf(1);
                 const stmt = statements[0];
                 //assert date, quantity, proceeds, cost, pnl
-                expect(stmt.date).to.equal('2025-06-18');
+                expect(stmt.date).to.equal('2025-01-16');
                 expect(stmt.symbol).to.equal('USD/SEK');
                 expect(stmt.quantity).to.equal(1000);
                 expect(stmt.received).to.equal(19000);
                 expect(stmt.paid).to.equal(19810);
                 expect(stmt.pnl).to.equal(-810);
             });
+
+            // test: buy and sells with multiple cash positions
+            // test: buy and sells with resetting cash positions (qty =0)
         });
         
         // describe('TYPE_C Cash trades (Average Cost Method)', () => {

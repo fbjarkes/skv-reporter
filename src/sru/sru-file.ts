@@ -263,9 +263,9 @@ export class SRUFile {
                 const received = saleQty * trade.price;
                 const receivedSek = _convertCurrency(received, trade.tradeCurrency, trade.dateTime);
                 const paid = saleQty * avgCost;
-                const paidSek = _convertCurrency(paid, pos.currency, trade.dateTime);
-                const commissionSek = _convertCurrency(trade.commission, trade.commissionCurrency, trade.dateTime);
-                const pnl = receivedSek - paidSek - commissionSek;
+                const commissionSek = _convertCurrency(Math.abs(trade.commission), trade.commissionCurrency, trade.dateTime);
+                const paidSek = _convertCurrency(paid, pos.currency, trade.dateTime) + commissionSek;             
+                const pnl = receivedSek - paidSek;
 
                 const symbol = trade.symbol + (trade.transactionType ? ` ${trade.transactionType}` : '');
 
@@ -277,7 +277,7 @@ export class SRUFile {
                     receivedSek,
                     pnl,
                     K4_TYPE.TYPE_C,
-                    trade.dateTime,
+                    trade.dateTime.substring(0, 10),
                     K4_SEC_TYPE.CASH,
                 );
 
