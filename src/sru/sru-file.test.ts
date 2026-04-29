@@ -5,7 +5,7 @@ import { K4Form } from '../types/k4-form';
 import { TradeType } from '../types/trade';
 import { generateBlanketterFileData, isCommodityFuture, SRUFile, SRUInfo } from './sru-file';
 import { K4_SEC_TYPE, K4_TYPE, Statement } from '../types/statement';
-import { CashPosition, CashType } from '../types/cash';
+import { CashPosition } from '../types/cash';
 
 
 chai.use(chaiAsPromised);
@@ -47,7 +47,7 @@ describe('SRU Files', () => {
         t.commission = comm;
         t.pnl = pnl;
         t.transactionType = 'ExchTrade';
-        t.currency = 'USD';
+        t.tradeCurrency = 'USD';
         t.direction = qty > 0 ? 'LONG' : 'SHORT';
         return t;
     };
@@ -72,9 +72,13 @@ describe('SRU Files', () => {
         t.commission = comm;
         t.pnl = pnl;
         t.transactionType = 'ExchTrade';
-        t.currency = 'USD';
+        t.tradeCurrency = 'USD';
         t.direction = qty > 0 ? 'LONG' : 'SHORT';
         return t;
+    };
+
+    const _createCashTrade = (init: Partial<TradeType>): TradeType => {
+        return new TradeType({ transactionType: 'CASH', tradeCurrency: 'USD', ...init });
     };
 
     it('should create SRU info', () => {
@@ -121,7 +125,7 @@ describe('SRU Files', () => {
                 t1.commission = -1;
                 t1.transactionType = 'ExchTrade';
                 t1.pnl = 99;
-                t1.currency = 'USD';
+                t1.tradeCurrency = 'USD';
                 t1.openClose = 'C';
                 const sru = new SRUFile(fxRates, [t1]);
                 const statements = sru.getStatements();
@@ -138,7 +142,7 @@ describe('SRU Files', () => {
                 expiredOpt.proceeds = 0;
                 expiredOpt.cost = -1388.5;
                 expiredOpt.securityType = 'OPT';
-                expiredOpt.currency = 'SEK';
+                expiredOpt.tradeCurrency = 'SEK';
                 expiredOpt.pnl = -1398.5;
                 expiredOpt.commission = -10;
                 expiredOpt.transactionType = 'ExchTrade';
@@ -153,7 +157,7 @@ describe('SRU Files', () => {
 
             it('should handle short trades correctly', () => {
                 const t1 = new TradeType();
-                t1.currency = 'USD';
+                t1.tradeCurrency = 'USD';
                 t1.direction = 'SHORT';
                 t1.exitDateTime = '2017-09-22 14:21';
                 t1.exitPrice = 5.1;
@@ -176,7 +180,7 @@ describe('SRU Files', () => {
 
             it('should not create statements for trades with PnL < 1 SEK', () => {
                 const t1 = new TradeType();
-                t1.currency = 'USD';
+                t1.tradeCurrency = 'USD';
                 t1.exitDateTime = '2017-09-22 14:21';
                 t1.exitPrice = 0;
                 t1.pnl = 0;
@@ -192,13 +196,13 @@ describe('SRU Files', () => {
                 t2.symbol = 'SPY';
                 t2.securityType = 'STK';
                 t2.pnl = 0.1;
-                t2.currency = 'USD';
+                t2.tradeCurrency = 'USD';
                 const t3 = new TradeType();
                 t3.exitDateTime = '2020-01-10';
                 t3.symbol = 'SPY';
                 t3.securityType = 'STK';
                 t3.pnl = 0.2;
-                t3.currency = 'USD';
+                t3.tradeCurrency = 'USD';
 
                 const sru = new SRUFile(fxRates, [t1, t2, t3]);
                 const statements = sru.getStatements();
@@ -217,7 +221,7 @@ describe('SRU Files', () => {
                 t2.securityType = 'STK';
                 t2.pnl = 1;
 
-                const sru = new SRUFile(fxRates, [t1, t2], [], { taxYear: 2021 });
+                const sru = new SRUFile(fxRates, [t1, t2], { taxYear: 2021 });
                 expect(() => sru.getStatements()).to.throw(/Tax year mismatch/);
             });
             it('should throw error when missing FX rate for trade which must be converted', () => {
@@ -226,13 +230,13 @@ describe('SRU Files', () => {
                 t1.symbol = 'SPY';
                 t1.securityType = 'STK';
                 t1.pnl = 1;
-                t1.currency = 'USD';
+                t1.tradeCurrency = 'USD';
                 const t2 = new TradeType();
                 t2.exitDateTime = '2020-01-11';
                 t2.symbol = 'SPY';
                 t2.securityType = 'STK';
                 t2.pnl = 1;
-                t2.currency = 'USD';
+                t2.tradeCurrency = 'USD';
                 const sru = new SRUFile(fxRates, [t1, t2]);
                 expect(() => sru.getStatements()).to.throw('Missing USD/SEK rate for 2020-01-11');
             });
@@ -242,20 +246,26 @@ describe('SRU Files', () => {
                 t1.symbol = 'BMW';
                 t1.securityType = 'STK';
                 t1.pnl = 1;
-                t1.currency = 'EUR';
+                t1.tradeCurrency = 'EUR';
                 const sru = new SRUFile(fxRates, [t1]);
                 expect(() => sru.getStatements()).to.throw(/Unsupported currency 'EUR'/);
             });
             it('should handle "C;O" trades correctly', () => {
-                const t1 = new TradeType('M2KU1', -1, 2219.2, 0, '2021-01-11', '2021-01-11');
+                const t1 = new TradeType();
+                t1.symbol = 'M2KU1';
+                t1.quantity = -1;
+                t1.exitDateTime = '2021-01-11';
                 t1.openClose = 'O';
                 t1.securityType = 'FUT';
                 t1.cost = -11095.48;
                 t1.commission = -0.52;
                 t1.proceeds = -11096;
                 t1.pnl = 0;
-                t1.currency = 'USD';
-                const t2 = new TradeType('M2KU1', 2, 0, 2240.5, '2021-01-11', '2021-01-11');
+                t1.tradeCurrency = 'USD';
+                const t2 = new TradeType();
+                t2.symbol = 'M2KU1';
+                t2.quantity = 2;
+                t2.exitDateTime = '2021-01-11';
                 t2.openClose = 'C;O';
                 t2.securityType = 'FUT';
                 t2.cost = 11095.48;
@@ -263,8 +273,11 @@ describe('SRU Files', () => {
                 t2.proceeds = -22405;
                 t2.pnl = -107.54;
                 t2.direction = 'SHORT';
-                t2.currency = 'USD';
-                const t3 = new TradeType('M2KU1', -1, 0, 2232, '2021-01-11', '2021-01-11');
+                t2.tradeCurrency = 'USD';
+                const t3 = new TradeType();
+                t3.symbol = 'M2KU1';
+                t3.quantity = -1;
+                t3.exitDateTime = '2021-01-11';
                 t3.openClose = 'C';
                 t3.securityType = 'FUT';
                 t3.cost = -11203.02;
@@ -272,7 +285,7 @@ describe('SRU Files', () => {
                 t3.proceeds = 11160;
                 t3.pnl = -43.54;
                 t3.direction = 'LONG';
-                t3.currency = 'USD';
+                t3.tradeCurrency = 'USD';
                 const sru = new SRUFile(fxRates, [t1, t2, t3]);
                 const statements = sru.getStatements();
                 expect(statements).to.be.of.length(2);
@@ -296,7 +309,7 @@ describe('SRU Files', () => {
                     new CashPosition({symbol: 'BTC/USD', cumQty: 0.00555, cumCost: 300, currency: 'USD'})
                 ];
 
-                const sru = new SRUFile(fxRates, [], []);
+                const sru = new SRUFile(fxRates, []);
             
                 sru.setInitialCashPositions(cashPositions);
                 const statements = sru.getStatements();
@@ -318,9 +331,9 @@ describe('SRU Files', () => {
                 expect(pos2!.averageCost).to.equal(54054.05405);
             });
             it('should process cum. cost, cum. cty and avg. price from buy trade', () => {                    
-                const t1 = new CashType( {symbol: 'USD/SEK', side: 'BUY', quantity: 500, price: 20.0, proceeds: -10000, commission: -2, commissionCurrency: 'USD', dateTime: '2025-01-15 12:00:00',securityType: 'CASH'});
-                const t2 = new CashType( {symbol: 'USD/SEK', side: 'BUY', quantity: 500, price: 10.0, proceeds: -5000, commission: -2, commissionCurrency: 'USD', dateTime: '2025-01-15 12:00:00',securityType: 'CASH'});
-                const sru = new SRUFile(fxRates, [], [t1, t2]);
+                const t1 = _createCashTrade({ symbol: 'USD/SEK', direction: 'BUY', quantity: 500, entryPrice: 20.0, proceeds: -10000, commission: -2, commissionCurrency: 'USD', tradeCurrency: 'SEK', entryDateTime: '2025-01-15 12:00:00' });
+                const t2 = _createCashTrade({ symbol: 'USD/SEK', direction: 'BUY', quantity: 500, entryPrice: 10.0, proceeds: -5000, commission: -2, commissionCurrency: 'USD', tradeCurrency: 'SEK', entryDateTime: '2025-01-15 12:00:00' });
+                const sru = new SRUFile(fxRates, [t1, t2]);
                 const statements = sru.getStatements();
                 const cashStatements = sru.getCashStatements();
                 
@@ -339,47 +352,14 @@ describe('SRU Files', () => {
             });
 
             it('should create valid statement from sell trade', () => {
-                const args1 = {
-                    symbol: 'USD/SEK',
-                    side: 'BUY',
-                    quantity: 500,
-                    price: 20.0,
-                    proceeds: -10000,
-                    commission: -2, // use FX Rate 2025-01-15 @ 10 for simplicity
-                    commissionCurrency: 'USD',
-                    dateTime: '2025-01-15 12:00:00',
-                    securityType: 'CASH',
-                };
-                const t1 = new CashType(args1);
-                const args2 = {
-                    symbol: 'USD/SEK',
-                    side: 'BUY',
-                    quantity: 500,
-                    price: 19.5,
-                    proceeds: -9750,
-                    commission: -2, // use FX Rate 2025-01-15 @ 10 for simplicity
-                    commissionCurrency: 'USD',
-                    dateTime: '2025-01-15 13:00:00',
-                    securityType: 'CASH',
-                };
-                const t2 = new CashType(args2);
-                const args3 = {
-                    symbol: 'USD/SEK',
-                    side: 'SELL',
-                    quantity: -1000,
-                    price: 19.0,
-                    proceeds: 10000,
-                    commission: -2, // use FX Rate 2025-01-16 @ 10 for simplicity
-                    commissionCurrency: 'USD',
-                    dateTime: '2025-01-16 13:00:00',
-                    securityType: 'CASH',
-                };
-                const t3 = new CashType(args3);
+                const t1 = new TradeType({symbol: 'USD/SEK', direction: 'BUY', quantity: 500, entryPrice: 20.0, proceeds: -10000, commission: -2, commissionCurrency: 'USD', tradeCurrency: 'SEK', entryDateTime: '2025-01-15 12:00:00', securityType: 'CASH', transactionType: 'CASH' });
+                const t2 = new TradeType({symbol: 'USD/SEK', direction: 'BUY', quantity: 500, entryPrice: 19.5, proceeds: -9750, commission: -2, commissionCurrency: 'USD', tradeCurrency: 'SEK', entryDateTime: '2025-01-15 13:00:00', securityType: 'CASH', transactionType: 'CASH' });
+                const t3 = new TradeType({symbol: 'USD/SEK', direction: 'SELL', quantity: -1000, exitPrice: 19.0, proceeds: 10000, commission: -2, commissionCurrency: 'USD', tradeCurrency: 'SEK', exitDateTime: '2025-01-16 13:00:00', securityType: 'CASH', transactionType: 'CASH' });
                  const cashPositions = [
                     new CashPosition({symbol: 'USD/SEK', cumQty: 0, cumCost: 0, currency: 'SEK'}),                    
                 ];
                         
-                const sru = new SRUFile(fxRates, [], [t1, t2, t3]);
+                const sru = new SRUFile(fxRates, [t1, t2, t3]);
                 sru.setInitialCashPositions(cashPositions);
 
                 const statements = sru.getCashStatements();
@@ -413,13 +393,13 @@ describe('SRU Files', () => {
                 // Buy 1000 USD/SEK @ 15.0, avg. 12.5ish 
                 // Sell 1000 USD/SEK @ 10, pnl: -2500ish
                 // Cash position: 1000 @ 12.5ish
-                const t1 = new CashType( {symbol: 'USD/SEK', side: 'BUY', quantity: 1000, price: 20.0, proceeds: -20_000, commission: -2, commissionCurrency: 'USD', dateTime: '2025-01-15 12:00:00'});
-                const t2 = new CashType( {symbol: 'USD/SEK', side: 'SELL', quantity: -2000, price: 25.0, proceeds: 50_000, commission: -2, commissionCurrency: 'USD', dateTime: '2025-01-16 12:00:00'});
-                const t3 = new CashType( {symbol: 'USD/SEK', side: 'BUY', quantity: 1000, price: 10.0, proceeds: -10_000, commission: -2, commissionCurrency: 'USD', dateTime: '2025-01-17 13:00:00'});
-                const t4 = new CashType( {symbol: 'USD/SEK', side: 'BUY', quantity: 1000, price: 15.0, proceeds: -15_000, commission: -2, commissionCurrency: 'USD', dateTime: '2025-01-18 14:00:00'});
-                const t5 = new CashType( {symbol: 'USD/SEK', side: 'SELL', quantity: -1000, price: 10.0, proceeds: 10_000, commission: -2, commissionCurrency: 'USD', dateTime: '2025-01-19 15:00:00'});
-                
-                const sru = new SRUFile(fxRates, [], [t1, t2, t3, t4, t5]);
+                const t1 = _createCashTrade({ symbol: 'USD/SEK', direction: 'BUY', quantity: 1000, entryPrice: 20.0, proceeds: -20_000, commission: -2, commissionCurrency: 'USD', tradeCurrency: 'SEK', entryDateTime: '2025-01-15 12:00:00' });
+                const t2 = _createCashTrade({ symbol: 'USD/SEK', direction: 'SELL', quantity: -2000, exitPrice: 25.0, proceeds: 50_000, commission: -2, commissionCurrency: 'USD', tradeCurrency: 'SEK', exitDateTime: '2025-01-16 12:00:00' });
+                const t3 = _createCashTrade({ symbol: 'USD/SEK', direction: 'BUY', quantity: 1000, entryPrice: 10.0, proceeds: -10_000, commission: -2, commissionCurrency: 'USD', tradeCurrency: 'SEK', entryDateTime: '2025-01-17 13:00:00' });
+                const t4 = _createCashTrade({ symbol: 'USD/SEK', direction: 'BUY', quantity: 1000, entryPrice: 15.0, proceeds: -15_000, commission: -2, commissionCurrency: 'USD', tradeCurrency: 'SEK', entryDateTime: '2025-01-18 14:00:00' });
+                const t5 = _createCashTrade({ symbol: 'USD/SEK', direction: 'SELL', quantity: -1000, exitPrice: 10.0, proceeds: 10_000, commission: -2, commissionCurrency: 'USD', tradeCurrency: 'SEK', exitDateTime: '2025-01-19 15:00:00' });
+
+                const sru = new SRUFile(fxRates, [t1, t2, t3, t4, t5]);
                 sru.setInitialCashPositions(cashPositions);
 
                 const statements = sru.getCashStatements();
@@ -454,8 +434,8 @@ describe('SRU Files', () => {
         
         // describe('TYPE_C Cash trades (Average Cost Method)', () => {
         //     // AI generated
-        //     const _createCash = (symbol: string, qty: number, price: number, commission = 0, dateTime = '2021-01-10'): CashType => {
-        //         return new CashType(symbol, qty, price, commission, dateTime);
+        //     const _createCash = (symbol: string, qty: number, price: number, commission = 0, dateTime = '2021-01-10'): TradeType => {
+        //         return new TradeType({ symbol, quantity: qty, price, commission, dateTime, transactionType: 'CASH' });
         //     };
 
         //     it('should track cumulative position after two buys', () => {

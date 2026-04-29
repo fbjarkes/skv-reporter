@@ -8,10 +8,10 @@ chai.use(chaiAsPromised);
 describe('Utils', () => {
     it('should add entry dates for closing trades', () => {
         const trades = [
-            new TradeType('SPY', 100, 250, 0, '2020-01-01', '', 'O', 'LONG'),
-            new TradeType('SPY', 100, 250, 0, '2020-01-02', '', 'O', 'LONG'),
-            new TradeType('SPY', 50, 0, 260, '', '2020-01-03', 'C', 'LONG'),
-            new TradeType('SPY', 50, 0, 270, '', '2020-01-04', 'C', 'LONG'),
+            new TradeType({ symbol: 'SPY', quantity: 100, entryPrice: 250, exitPrice: 0, entryDateTime: '2020-01-01', exitDateTime: '', openClose: 'O', direction: 'LONG' }),
+            new TradeType({ symbol: 'SPY', quantity: 100, entryPrice: 250, exitPrice: 0, entryDateTime: '2020-01-02', exitDateTime: '', openClose: 'O', direction: 'LONG' }),
+            new TradeType({ symbol: 'SPY', quantity: 50, entryPrice: 0, exitPrice: 260, entryDateTime: '', exitDateTime: '2020-01-03', openClose: 'C', direction: 'LONG' }),
+            new TradeType({ symbol: 'SPY', quantity: 50, entryPrice: 0, exitPrice: 270, entryDateTime: '', exitDateTime: '2020-01-04', openClose: 'C', direction: 'LONG' }),
         ];
         connectTrades(trades);
 
@@ -21,12 +21,12 @@ describe('Utils', () => {
 
     it('should add entry dates and prices for closing trades', () => {
         const trades = [
-            new TradeType('SPY', -100, 250, 0, '2020-01-01', '', 'O', 'SHORT'),
-            new TradeType('SPY', -100, 251, 0, '2020-01-02', '', 'O', 'SHORT'),
-            new TradeType('SPY', 100, 0, 260, '', '2020-01-03', 'C', 'SHORT'),
-            new TradeType('SPY', 100, 0, 270, '', '2020-01-04', 'C', 'SHORT'),
-            new TradeType('SPY', -100, 260, 0, '2020-02-02', '', 'O', 'SHORT'),
-            new TradeType('SPY', 100, 0, 250, '', '2020-02-03', 'C', 'SHORT'),
+            new TradeType({ symbol: 'SPY', quantity: -100, entryPrice: 250, exitPrice: 0, entryDateTime: '2020-01-01', exitDateTime: '', openClose: 'O', direction: 'SHORT' }),
+            new TradeType({ symbol: 'SPY', quantity: -100, entryPrice: 251, exitPrice: 0, entryDateTime: '2020-01-02', exitDateTime: '', openClose: 'O', direction: 'SHORT' }),
+            new TradeType({ symbol: 'SPY', quantity: 100, entryPrice: 0, exitPrice: 260, entryDateTime: '', exitDateTime: '2020-01-03', openClose: 'C', direction: 'SHORT' }),
+            new TradeType({ symbol: 'SPY', quantity: 100, entryPrice: 0, exitPrice: 270, entryDateTime: '', exitDateTime: '2020-01-04', openClose: 'C', direction: 'SHORT' }),
+            new TradeType({ symbol: 'SPY', quantity: -100, entryPrice: 260, exitPrice: 0, entryDateTime: '2020-02-02', exitDateTime: '', openClose: 'O', direction: 'SHORT' }),
+            new TradeType({ symbol: 'SPY', quantity: 100, entryPrice: 0, exitPrice: 250, entryDateTime: '', exitDateTime: '2020-02-03', openClose: 'C', direction: 'SHORT' }),
         ];
         connectTrades(trades);
 
@@ -40,12 +40,12 @@ describe('Utils', () => {
 
     it('should have a unique id to relate closing trades to the opening trade', () => {
         const trades = [
-            new TradeType('SPY', 100, 250, 0, '2020-01-01', '', 'O', 'LONG'),
-            new TradeType('SPY', 100, 240, 0, '2020-01-01', '', 'O', 'LONG'),
-            new TradeType('SPY', -100, 0, 260, '', '2020-01-03', 'C', 'LONG'),
-            new TradeType('SPY', -100, 0, 270, '', '2020-01-04', 'C', 'LONG'),
-            new TradeType('SPY', -100, 260, 0, '2020-02-02', '', 'O', 'SHORT'),
-            new TradeType('SPY', 100, 0, 250, '', '2020-02-03', 'C', 'SHORT'),
+            new TradeType({ symbol: 'SPY', quantity: 100, entryPrice: 250, exitPrice: 0, entryDateTime: '2020-01-01', exitDateTime: '', openClose: 'O', direction: 'LONG' }),
+            new TradeType({ symbol: 'SPY', quantity: 100, entryPrice: 240, exitPrice: 0, entryDateTime: '2020-01-01', exitDateTime: '', openClose: 'O', direction: 'LONG' }),
+            new TradeType({ symbol: 'SPY', quantity: -100, entryPrice: 0, exitPrice: 260, entryDateTime: '', exitDateTime: '2020-01-03', openClose: 'C', direction: 'LONG' }),
+            new TradeType({ symbol: 'SPY', quantity: -100, entryPrice: 0, exitPrice: 270, entryDateTime: '', exitDateTime: '2020-01-04', openClose: 'C', direction: 'LONG' }),
+            new TradeType({ symbol: 'SPY', quantity: -100, entryPrice: 260, exitPrice: 0, entryDateTime: '2020-02-02', exitDateTime: '', openClose: 'O', direction: 'SHORT' }),
+            new TradeType({ symbol: 'SPY', quantity: 100, entryPrice: 0, exitPrice: 250, entryDateTime: '', exitDateTime: '2020-02-03', openClose: 'C', direction: 'SHORT' }),
         ];
         connectTrades(trades);
 
@@ -59,10 +59,10 @@ describe('Utils', () => {
 
     it('should have a trade duration for connected trades', () => {
         const trades = [
-            new TradeType('SPY', 100, 250, 0, '2020-01-02 09:00', '', 'O', 'LONG'),
-            new TradeType('SPY', 100, 240, 0, '2020-01-03 09:00', '', 'O', 'LONG'),
-            new TradeType('SPY', -100, 0, 260, '', '2020-01-03 10:00', 'C', 'LONG'),
-            new TradeType('SPY', -100, 0, 270, '', '2020-01-04 09:00', 'C', 'LONG'),
+            new TradeType({ symbol: 'SPY', quantity: 100, entryPrice: 250, exitPrice: 0, entryDateTime: '2020-01-02 09:00', exitDateTime: '', openClose: 'O', direction: 'LONG' }),
+            new TradeType({ symbol: 'SPY', quantity: 100, entryPrice: 240, exitPrice: 0, entryDateTime: '2020-01-03 09:00', exitDateTime: '', openClose: 'O', direction: 'LONG' }),
+            new TradeType({ symbol: 'SPY', quantity: -100, entryPrice: 0, exitPrice: 260, entryDateTime: '', exitDateTime: '2020-01-03 10:00', openClose: 'C', direction: 'LONG' }),
+            new TradeType({ symbol: 'SPY', quantity: -100, entryPrice: 0, exitPrice: 270, entryDateTime: '', exitDateTime: '2020-01-04 09:00', openClose: 'C', direction: 'LONG' }),
         ];
         connectTrades(trades);
 
