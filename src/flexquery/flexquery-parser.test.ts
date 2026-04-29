@@ -191,5 +191,64 @@ describe('FlexQueryParser', () => {
             expect(trades[1].direction).to.equal('BUY');
             expect(trades[1].transactionType).to.equal('ExchTrade');
         });
+
+        it('should parse two buy trades and one sell trade', async () => {
+            const testFileData = await fs.readFile('test/fixtures/cash_trade2.xml', 'utf8');
+            flexParser.parse(testFileData);
+            const trades = flexParser.getAllTrades();
+
+            expect(trades).to.have.lengthOf(3);
+
+            // Assert first buy: 500 @ 20.0
+            expect(trades[0].symbol).to.equal('USD/SEK');
+            expect(trades[0].description).to.equal('USD/SEK');
+            expect(trades[0].quantity).to.equal(500);
+            expect(trades[0].entryPrice).to.equal(20);
+            expect(trades[0].exitPrice).to.equal(0);
+            expect(trades[0].proceeds).to.equal(-10_000);
+            expect(trades[0].cost).to.equal(0);
+            expect(trades[0].pnl).to.equal(0);
+            expect(trades[0].securityType).to.equal('CASH');
+            expect(trades[0].entryDateTime).to.equal('2025-01-15');
+            expect(trades[0].exitDateTime).to.equal('');
+            expect(trades[0].commission).to.equal(-2);
+            expect(trades[0].tradeCurrency).to.equal('SEK');
+            expect(trades[0].direction).to.equal('BUY');
+            expect(trades[0].transactionType).to.equal('ExchTrade');
+
+            // Assert second buy: 500 @ 19.5
+            expect(trades[1].symbol).to.equal('USD/SEK');
+            expect(trades[1].description).to.equal('USD/SEK');
+            expect(trades[1].quantity).to.equal(500);
+            expect(trades[1].entryPrice).to.equal(19.5);
+            expect(trades[1].exitPrice).to.equal(0);
+            expect(trades[1].proceeds).to.equal(-9_750);
+            expect(trades[1].cost).to.equal(0);
+            expect(trades[1].pnl).to.equal(0);
+            expect(trades[1].securityType).to.equal('CASH');
+            expect(trades[1].entryDateTime).to.equal('2025-01-15');
+            expect(trades[1].exitDateTime).to.equal('');
+            expect(trades[1].commission).to.equal(-2);
+            expect(trades[1].tradeCurrency).to.equal('SEK');
+            expect(trades[1].direction).to.equal('BUY');
+            expect(trades[1].transactionType).to.equal('ExchTrade');
+
+            // Assert sell: 1000 @ 19.0
+            expect(trades[2].symbol).to.equal('USD/SEK');
+            expect(trades[2].description).to.equal('USD/SEK');
+            expect(trades[2].quantity).to.equal(-1000);
+            expect(trades[2].entryPrice).to.equal(0);
+            expect(trades[2].exitPrice).to.equal(19);
+            expect(trades[2].proceeds).to.equal(19_000);
+            expect(trades[2].cost).to.equal(0);
+            expect(trades[2].pnl).to.equal(0);
+            expect(trades[2].securityType).to.equal('CASH');
+            expect(trades[2].entryDateTime).to.equal('');
+            expect(trades[2].exitDateTime).to.equal('2025-01-16');
+            expect(trades[2].commission).to.equal(-2);
+            expect(trades[2].tradeCurrency).to.equal('SEK');
+            expect(trades[2].direction).to.equal('SELL');
+            expect(trades[2].transactionType).to.equal('ExchTrade');
+        });
     });
 });

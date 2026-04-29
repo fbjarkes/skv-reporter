@@ -195,10 +195,16 @@ export class FlexQueryParser {
                     t.tradeCurrency = item._currency;
                     t.transactionType = item._transactionType;
                     t.direction = item._buySell; //TODO: LONG/SHORT or BUY/SELL??
-                    t.entryPrice = Number(item._tradePrice);
                     const dateStr = item._dateTime ? item._dateTime.substring(0, 8) : '';
-                    t.entryDateTime =
+                    const dateFormatted =
                         dateStr.length === 8 ? format(parse(dateStr, FQ_DATE_FORMAT, new Date()), DATE_FORMAT) : '';
+                    if (item._buySell === 'SELL') {
+                        t.exitPrice = Number(item._tradePrice);
+                        t.exitDateTime = dateFormatted;
+                    } else {
+                        t.entryPrice = Number(item._tradePrice);
+                        t.entryDateTime = dateFormatted;
+                    }
                     this.#trades.push(t);
                     return;
                 }
