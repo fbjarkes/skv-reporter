@@ -231,6 +231,8 @@ export class SRUFile {
             (trade) => trade.transactionType === 'CASH' || trade.securityType === 'CASH',
         );
         cashTrades.forEach((trade: TradeType) => {
+            // TODO: direction field uses 'LONG'/'SHORT' (not 'BUY'/'SELL'); replace with `trade.quantity > 0` for entry
+            // vs exit datetime selection, or map _buySell explicitly in the parser to avoid wrong datetime / FX lookup.
             const dateTime = trade.direction === 'BUY' ? trade.entryDateTime : trade.exitDateTime;
             if (this.sruInfo?.taxYear && this.sruInfo?.taxYear !== Number(dateTime.substring(0, 4))) {
                 throw new Error(
@@ -384,6 +386,9 @@ export class SRUFile {
         validateSRUInfo(this.sruInfo);
         const title = `K4-${this.sruInfo?.taxYear}P4`;
         const allStatements = this.getStatements();
+        // TODO: merge getCashStatements() into allStatements, chunk them into TYPE_C K4Forms, and include TYPE_C totals
+        // so that cash activity is actually included in the generated SRU packages/forms. Also ensure
+        // generateBlanketterFileData and K4Form support TYPE_C output.
         logger.info(
             `Generating SRU packages for ${allStatements.length} statements with ${this.statementsPerFile} statements per file`,
         );
