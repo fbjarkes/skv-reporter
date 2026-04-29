@@ -64,7 +64,7 @@ export const filterTrades = (t: TradeType, filters: TradeFilters): boolean => {
 };
 
 export const calculateStats = (trades: TradeType[]): TradeStats => {
-    const _usdOnly = (t: TradeType): boolean => t.currency === 'USD';
+    const _usdOnly = (t: TradeType): boolean => t.tradeCurrency === 'USD';
     const stats: TradeStats = {
         winners: 0,
         losers: 0,
