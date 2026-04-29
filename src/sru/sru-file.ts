@@ -188,19 +188,48 @@ export class SRUFile {
         this.maxTypeDStatements = maxTypeDStatements;
     }
     
-    setInitialCashPosition(symbol: string, qty: number, cost: number): void {
-        this.cashPositions.set(symbol, new CashPosition(symbol, qty, cost));
+    setInitialCashPositions(cashPositions: CashPosition[]): void {
+        cashPositions.forEach((pos) => {
+            this.cashPositions.set(pos.symbol, pos);
+        });
     }
 
     getCashPosition(symbol: string): CashPosition | undefined {
-        //const [positions] = this.processCashTradesInternal();
         return this.cashPositions.get(symbol);
     }
 
     getCashStatements(): Statement[] {
-        //const [, sellSnapshots] = this.processCashTradesInternal();
+        const _convertCommission  = (trade: CashType): number => {
+            if (trade.tradeCurrency == 'SEK' && trade.commissionCurrency == 'USD') {
+                const rate = this.fxRates.get(trade.dateTime.substring(0, 10))?.get('USD/SEK');
+                if (!rate) {
+                    throw new Error(`Missing USD/SEK rate for ${trade.dateTime}`);
+                }
+                return Math.abs(trade.commission * rate);
+            }
+            if (trade.tradeCurrency != trade.commissionCurrency) {
+                throw new Error(`Unsupported commission currency '${trade.commissionCurrency} for trade currency '${trade.tradeCurrency}'`);
+            }
+            return Math.abs(trade.commission);
+        };
+        const _convertCurrency = (amount: number, currency: string, dateTime: string): number => {
+            if (currency == 'SEK') {
+                return amount;
+            }
+            if (currency == 'USD') {
+                const rate = this.fxRates.get(dateTime.substring(0, 10))?.get('USD/SEK');
+                if (!rate) {
+                    throw new Error(`Missing USD/SEK rate for ${dateTime}`);
+                }
+                return amount * rate;
+            }
+            throw new Error(`Unsupported currency '${currency}'`);
+        }
+
         const statements: Statement[] = [];
         let id = 0;
+        let rate: undefined | number = undefined;
+        //TODO: really ned CashType?
         this.cashTrades.forEach((trade: CashType) => {
             if (this.sruInfo?.taxYear && this.sruInfo?.taxYear !== Number(trade.dateTime.substring(0, 4))) {
                 throw new Error(
@@ -210,30 +239,33 @@ export class SRUFile {
             
             const symbol = trade.symbol;
             if (!this.cashPositions.has(symbol)) {
-                this.cashPositions.set(symbol, new CashPosition(symbol));
-                logger.info(`${symbol}: Initializing cash position for symbol with 0 qty and 0 cost`);
+                this.cashPositions.set(symbol, new CashPosition(symbol, 0, 0, trade.tradeCurrency));
+                logger.info(`${symbol}: Initializing cash position for symbol with 0 qty and 0 cost in currency ${trade.tradeCurrency}`);
             }
             const pos = this.cashPositions.get(symbol)!;
 
             //TODO: use field 'buySell' instead of checking?
             if (trade.quantity > 0) {
-                //NOTE: statements must in SEK so convert all fields used from trade to SEK (if not in SEK already)
-                const totalCost = trade.proceeds + Math.abs(trade.commission); //TODO: convert to sek
+                const totalCost = trade.proceeds + _convertCommission(trade); 
                 pos.cumulativeCost += totalCost;
                 pos.cumulativeQty += trade.quantity;
 
+                // No statement needed
+
             } else if (trade.quantity < 0) {
-                
+                // Update position
                 const saleQty = Math.abs(trade.quantity);
-                const avgCost = pos.averageCost;
-                
+                const avgCost = pos.averageCost;                
                 pos.cumulativeQty -= saleQty;
                 pos.cumulativeCost = pos.cumulativeQty * avgCost; //TODO: or pos.cumulativeCost -= saleQty *avgCost ?
-                                  
-                const received = Math.round(saleQty * trade.price);
-                const receivedSek = received - Math.abs(trade.commission); //TODO: convert to SEK
-                const paid = Math.round(saleQty * avgCost);
-                const pnl = received - paid;
+                                
+                // Create statement (all in SEK)
+                const received = saleQty * trade.price;
+                const receivedSek = _convertCurrency(received, trade.tradeCurrency, trade.dateTime);
+                const paid = saleQty * avgCost;
+                const paidSek = _convertCurrency(paid, pos.currency, trade.dateTime);
+                const commissionSek = _convertCurrency(trade.commission, trade.commissionCurrency, trade.dateTime);
+                const pnl = receivedSek - paidSek - commissionSek;
 
                 const symbol = trade.symbol + (trade.transactionType ? ` ${trade.transactionType}` : '');
 
@@ -241,8 +273,8 @@ export class SRUFile {
                     id++,
                     saleQty,
                     symbol,
-                    paid,
-                    received,
+                    paidSek,
+                    receivedSek,
                     pnl,
                     K4_TYPE.TYPE_C,
                     trade.dateTime,

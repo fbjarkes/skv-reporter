@@ -4,7 +4,8 @@ export class CashType {
     quantity = 0;
     price = 0;
     commission = 0;
-    commissionCurrency = 'USD';
+    commissionCurrency = 'USD'; // Usually account base currency (IBKR)
+    tradeCurrency = 'SEK'; // e.g. 'USD' for 'EUR/USD' or 'SEK' for 'USD/SEK'
     transactionType = '';
     proceeds = 0;
 
@@ -16,19 +17,29 @@ export class CashType {
     }
 }
 
+export interface CashPositionOptions {
+    symbol: string;
+    cumQty: number;
+    cumCost: number;
+    currency: string;
+}
+
 export class CashPosition {
     symbol: string;
     cumulativeQty: number;
-    cumulativeCost: number; // total cost in SEK
+    cumulativeCost: number;
+    currency: string;
 
-    constructor(symbol: string, qty = 0, cost = 0) {
-        this.symbol = symbol;
-        this.cumulativeQty = qty;
-        this.cumulativeCost = cost;
+    constructor(options: CashPositionOptions) {
+        this.symbol = options.symbol;
+        this.cumulativeQty = options.cumQty;
+        this.cumulativeCost = options.cumCost;
+        this.currency = options.currency;
     }
 
     get averageCost(): number {
         if (this.cumulativeQty === 0) return 0;
-        return this.cumulativeCost / this.cumulativeQty;
+        const v = this.cumulativeCost / this.cumulativeQty;
+        return Math.round(v * 1e5) / 1e5;
     }
 }
