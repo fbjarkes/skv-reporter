@@ -234,7 +234,7 @@ export class FlexQueryParser {
                     t.commission = Number(item._ibCommission);
                     t.commissionCurrency = item._ibCommissionCurrency;
                     t.tradeCurrency = item._currency;
-                    t.transactionType = item._assetCategory === 'CASH' ? 'CASH' : item._transactionType;
+                    t.transactionType = item._transactionType;
                     t.openClose = item._openCloseIndicator;
 
                     if (item._openCloseIndicator === 'C' || item._openCloseIndicator === 'C;O') {
