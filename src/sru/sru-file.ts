@@ -250,6 +250,7 @@ export class SRUFile {
                 pos.cumulativeCost += totalCost;
                 pos.cumulativeQty += trade.quantity;
 
+
                 // No statement needed
 
             } else if (trade.quantity < 0) {
@@ -296,43 +297,6 @@ export class SRUFile {
         });
         return statements;
     }
-
-    // private getInitialPositionsCopy(): Map<string, CashPosition> {
-    //     const positions = new Map<string, CashPosition>();
-    //     this.initialCashPositions.forEach((pos, symbol) => {
-    //         positions.set(symbol, new CashPosition(symbol, pos.cumulativeQty, pos.cumulativeCost));
-    //     });
-    //     return positions;
-    // }
-
-    // private processCashTradesInternal(): [Map<string, CashPosition>, { trade: CashType; avgCost: number }[]] {
-    //     const positions = this.getInitialPositionsCopy();
-    //     const sellSnapshots: { trade: CashType; avgCost: number }[] = [];
-
-    //     this.cashTrades.forEach((trade: CashType) => {
-    //         const symbol = trade.symbol;
-    //         if (!positions.has(symbol)) {
-    //             positions.set(symbol, new CashPosition(symbol));
-    //         }
-    //         const pos = positions.get(symbol)!;
-
-    //         if (trade.quantity > 0) {
-    //             // Buy: accumulate cost and quantity
-    //             const totalCost = trade.quantity * trade.price + trade.commission;
-    //             pos.cumulativeCost += totalCost;
-    //             pos.cumulativeQty += trade.quantity;
-    //         } else if (trade.quantity < 0) {
-    //             // Sell: capture average cost before reducing the position
-    //             const saleQty = Math.abs(trade.quantity);
-    //             const avgCost = pos.averageCost;
-    //             sellSnapshots.push({ trade, avgCost });
-    //             pos.cumulativeQty -= saleQty;
-    //             pos.cumulativeCost = pos.cumulativeQty * avgCost;
-    //         }
-    //     });
-
-    //     return [positions, sellSnapshots];
-    // }
 
     getStatements(): Statement[] {
         const statements: Statement[] = [];

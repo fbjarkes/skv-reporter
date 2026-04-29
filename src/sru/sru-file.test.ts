@@ -19,6 +19,9 @@ describe('SRU Files', () => {
             '2017-09-22': new Map(Object.entries({ 'USD/SEK': 7.98 })),
             '2025-01-15': new Map(Object.entries({ 'USD/SEK': 10.0 })),
             '2025-01-16': new Map(Object.entries({ 'USD/SEK': 10.0 })),
+            '2025-01-17': new Map(Object.entries({ 'USD/SEK': 10.0 })),
+            '2025-01-18': new Map(Object.entries({ 'USD/SEK': 10.0 })),
+            '2025-01-19': new Map(Object.entries({ 'USD/SEK': 10.0 })),
 
         }),
     );
@@ -400,8 +403,53 @@ describe('SRU Files', () => {
                 expect(stmt.pnl).to.equal(-810);
             });
 
-            // test: buy and sells with multiple cash positions
-            // test: buy and sells with resetting cash positions (qty =0)
+             it('should create reset cash position and add new position again', () => {
+                const cashPositions = [
+                    new CashPosition({symbol: 'USD/SEK', cumQty: 1_000, cumCost: 10_020, currency: 'SEK'}), // Starting with 1000 USD/SEK @ 10.0 + commission (20SEK)                
+                ];
+                // Buy 1000 USD/SEK @ 20.0, avg. 15.0
+                // Sell 2000 USD/SEK @ 25.0, pnl: +20000ish
+                // Buy 1000 USD/SEK @ 10.0, avg. 10.0
+                // Buy 1000 USD/SEK @ 15.0, avg. 12.5ish 
+                // Sell 1000 USD/SEK @ 10, pnl: -2500ish
+                // Cash position: 1000 @ 12.5ish
+                const t1 = new CashType( {symbol: 'USD/SEK', side: 'BUY', quantity: 1000, price: 20.0, proceeds: -20_000, commission: -2, commissionCurrency: 'USD', dateTime: '2025-01-15 12:00:00'});
+                const t2 = new CashType( {symbol: 'USD/SEK', side: 'SELL', quantity: -2000, price: 25.0, proceeds: 50_000, commission: -2, commissionCurrency: 'USD', dateTime: '2025-01-16 12:00:00'});
+                const t3 = new CashType( {symbol: 'USD/SEK', side: 'BUY', quantity: 1000, price: 10.0, proceeds: -10_000, commission: -2, commissionCurrency: 'USD', dateTime: '2025-01-17 13:00:00'});
+                const t4 = new CashType( {symbol: 'USD/SEK', side: 'BUY', quantity: 1000, price: 15.0, proceeds: -15_000, commission: -2, commissionCurrency: 'USD', dateTime: '2025-01-18 14:00:00'});
+                const t5 = new CashType( {symbol: 'USD/SEK', side: 'SELL', quantity: -1000, price: 10.0, proceeds: 10_000, commission: -2, commissionCurrency: 'USD', dateTime: '2025-01-19 15:00:00'});
+                
+                const sru = new SRUFile(fxRates, [], [t1, t2, t3, t4, t5]);
+                sru.setInitialCashPositions(cashPositions);
+
+                const statements = sru.getCashStatements();
+                const cashPos = sru.getCashPosition('USD/SEK');
+
+                // Assert pos is reset to 0 after first sell, then updated again after next trades
+                expect(cashPos).to.not.be.undefined;
+                expect(cashPos!.cumulativeQty).to.equal(1_000);
+                expect(cashPos!.cumulativeCost).to.equal(12_520);
+                expect(cashPos!.averageCost).to.equal(12.52);
+
+                //assert 2 statements
+                expect(statements).to.have.lengthOf(2);
+                const stmt1 = statements[0];
+                expect(stmt1.date).to.equal('2025-01-16');
+                expect(stmt1.symbol).to.equal('USD/SEK');
+                expect(stmt1.quantity).to.equal(2000);
+                expect(stmt1.received).to.equal(50_000);
+                expect(stmt1.paid).to.equal(30_060);
+                expect(stmt1.pnl).to.equal(19_940);
+
+                const stmt2 = statements[1];
+                expect(stmt2.date).to.equal('2025-01-19');
+                expect(stmt2.symbol).to.equal('USD/SEK');
+                expect(stmt2.quantity).to.equal(1000);
+                expect(stmt2.received).to.equal(10_000);
+                expect(stmt2.paid).to.equal(12_540);
+                expect(stmt2.pnl).to.equal(-2_540);
+
+             });            
         });
         
         // describe('TYPE_C Cash trades (Average Cost Method)', () => {
