@@ -170,7 +170,7 @@ describe('FlexQueryParser', () => {
             expect(trades[0].entryDateTime).to.equal('2025-01-15');
             expect(trades[0].exitDateTime).to.equal('');
             expect(trades[0].commission).to.equal(-2);
-            expect(trades[0].tradeCurrency).to.equal('USD');
+            expect(trades[0].tradeCurrency).to.equal('SEK');
             expect(trades[0].direction).to.equal('BUY'); //TODO: LONG/SHORT or BUY/SELL??
             expect(trades[0].transactionType).to.equal('ExchTrade');
 
@@ -187,7 +187,7 @@ describe('FlexQueryParser', () => {
             expect(trades[1].entryDateTime).to.equal('2025-01-16');
             expect(trades[1].exitDateTime).to.equal('');
             expect(trades[1].commission).to.equal(-2);
-            expect(trades[1].tradeCurrency).to.equal('USD');
+            expect(trades[1].tradeCurrency).to.equal('SEK');
             expect(trades[1].direction).to.equal('BUY');
             expect(trades[1].transactionType).to.equal('ExchTrade');
         });
