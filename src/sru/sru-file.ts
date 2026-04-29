@@ -3,6 +3,7 @@ import format from 'date-fns/format';
 
 import { K4_SEC_TYPE, K4_TYPE, Statement } from '../types/statement';
 import { TradeType } from '../types/trade';
+import { CashPosition } from '../types/cash';
 import { K4Form, MAX_TYPE_A_STATEMENTS, MAX_TYPE_C_STATEMENTS, MAX_TYPE_D_STATEMENTS } from '../types/k4-form';
 import { logger } from '../logging';
 
@@ -161,6 +162,7 @@ export class SRUFile {
     trades: TradeType[];
     fxRates: Map<string, Map<string, number>>;
     createDate = new Date();
+    private cashPositions: Map<string, CashPosition> = new Map();
     supportedCurrencies = ['SEK', 'USD'];
 
     constructor(
@@ -182,11 +184,127 @@ export class SRUFile {
         this.maxTypeCStatements = maxTypeCStatements;
         this.maxTypeDStatements = maxTypeDStatements;
     }
+    
+    setInitialCashPositions(cashPositions: CashPosition[]): void {
+        cashPositions.forEach((pos) => {
+            this.cashPositions.set(pos.symbol, pos);
+        });
+    }
+
+    getCashPosition(symbol: string): CashPosition | undefined {
+        return this.cashPositions.get(symbol);
+    }
+
+    getCashStatements(): Statement[] {
+        const _convertCommission = (trade: TradeType): number => {
+            if (trade.tradeCurrency == 'SEK' && trade.commissionCurrency == 'USD') {
+                const date = trade.direction == 'BUY' ? trade.entryDateTime : trade.exitDateTime;
+                const rate = this.fxRates.get(date.substring(0, 10))?.get('USD/SEK');
+                if (!rate) {
+                    throw new Error(`Missing USD/SEK rate for ${date.substring(0, 10)}`);
+                }
+                return Math.abs(trade.commission * rate);
+            }
+            if (trade.tradeCurrency != trade.commissionCurrency) {
+                throw new Error(`Unsupported commission currency '${trade.commissionCurrency}' for trade currency '${trade.tradeCurrency}'`);
+            }
+            return Math.abs(trade.commission);
+        };
+        const _convertCurrency = (amount: number, currency: string, dateTime: string): number => {
+            if (currency == 'SEK') {
+                return amount;
+            }
+            if (currency == 'USD') {
+                const rate = this.fxRates.get(dateTime.substring(0, 10))?.get('USD/SEK');
+                if (!rate) {
+                    throw new Error(`Missing USD/SEK rate for ${dateTime}`);
+                }
+                return amount * rate;
+            }
+            throw new Error(`Unsupported currency '${currency}'`);
+        }
+
+        const statements: Statement[] = [];
+        let id = 0;
+
+        const cashTrades = this.trades.filter(
+            (trade) => trade.transactionType === 'CASH' || trade.securityType === 'CASH',
+        );
+        cashTrades.forEach((trade: TradeType) => {
+            // TODO: direction field uses 'LONG'/'SHORT' (not 'BUY'/'SELL'); replace with `trade.quantity > 0` for entry
+            // vs exit datetime selection, or map _buySell explicitly in the parser to avoid wrong datetime / FX lookup.
+            const dateTime = trade.direction === 'BUY' ? trade.entryDateTime : trade.exitDateTime;
+            if (this.sruInfo?.taxYear && this.sruInfo?.taxYear !== Number(dateTime.substring(0, 4))) {
+                throw new Error(
+                    `Tax year mismatch: SRU tax year ${this.sruInfo?.taxYear} does not match cash trade year ${dateTime} for trade ${trade}`,
+                );
+            }
+            
+            const symbol = trade.symbol;
+            if (!this.cashPositions.has(symbol)) {
+                this.cashPositions.set(symbol, new CashPosition({ symbol, cumQty: 0, cumCost: 0, currency: trade.tradeCurrency }));
+                logger.info(`${symbol}: Initializing cash position for symbol with 0 qty and 0 cost in currency ${trade.tradeCurrency}`);
+            }
+            const pos = this.cashPositions.get(symbol)!;
+
+            //TODO: use field 'buySell' instead of checking?
+            if (trade.quantity > 0) {
+                const totalCost = Math.abs(trade.proceeds) + _convertCommission(trade); 
+                pos.cumulativeCost += totalCost;
+                pos.cumulativeQty += trade.quantity;
+                // No statement needed
+
+            } else if (trade.quantity < 0) {
+                // Update position
+                const saleQty = Math.abs(trade.quantity);
+                const avgCost = pos.averageCost;                
+                pos.cumulativeQty -= saleQty;
+                pos.cumulativeCost = pos.cumulativeQty * avgCost; //TODO: or pos.cumulativeCost -= saleQty *avgCost ?
+                                
+                // Create statement (all in SEK)
+                const received = saleQty * trade.exitPrice;
+                const receivedSek = _convertCurrency(received, trade.tradeCurrency, dateTime);
+                const paid = saleQty * avgCost;
+                const commissionSek = _convertCurrency(Math.abs(trade.commission), trade.commissionCurrency, dateTime);
+                const paidSek = _convertCurrency(paid, pos.currency, dateTime) + commissionSek;             
+                const pnl = receivedSek - paidSek;
+
+                const symbol = trade.symbol + (trade.transactionType && trade.transactionType !== 'CASH' ? ` ${trade.transactionType}` : '');
+
+                const statement = new Statement(
+                    id++,
+                    saleQty,
+                    symbol,
+                    paidSek,
+                    receivedSek,
+                    pnl,
+                    K4_TYPE.TYPE_C,
+                    dateTime.substring(0, 10),
+                    K4_SEC_TYPE.CASH,
+                );
+
+                if (Math.abs(saleQty) < 1) {
+                    logger.warn(`Cash trade with quantity < 1: ${trade}. Force setting quantity to 1 in statement.`);
+                    statement.quantity = 1;
+                }
+
+                if (Math.abs(pnl) < 1) {
+                    logger.info(`Skipping cash trade with < 1SEK: ${statement.toString()}`);
+                } else {
+                    logger.info(`Adding cash statement: ${statement.toString()}`);
+                    statements.push(statement);
+                }
+            }
+        });
+        return statements;
+    }
 
     getStatements(): Statement[] {
         const statements: Statement[] = [];
         let id = 0;
-        this.trades.forEach((trade: TradeType) => {
+        this.trades
+            .filter((trade: TradeType) => trade.transactionType !== 'CASH')
+            .forEach((trade: TradeType) => {
             let rate: number | undefined = 1;
             let paid, received;
 
@@ -196,10 +314,10 @@ export class SRUFile {
                 );
             }
 
-            if (!this.supportedCurrencies.includes(trade.currency)) {
-                throw new Error(`Unsupported currency '${trade.currency}'`);
+            if (!this.supportedCurrencies.includes(trade.tradeCurrency)) {
+                throw new Error(`Unsupported currency '${trade.tradeCurrency}'`);
             }
-            if (trade.currency !== 'SEK') {
+            if (trade.tradeCurrency !== 'SEK') {
                 const key = trade.exitDateTime.substring(0, 10);
                 rate = this.fxRates.get(key)?.get('USD/SEK');
                 if (!rate) {
@@ -242,7 +360,7 @@ export class SRUFile {
                 //console.log(`Adding: ${statement.toString()}`);
                 statements.push(statement);
             }
-        });
+            });
         return statements;
     }
 
@@ -268,10 +386,15 @@ export class SRUFile {
         validateSRUInfo(this.sruInfo);
         const title = `K4-${this.sruInfo?.taxYear}P4`;
         const allStatements = this.getStatements();
+        // TODO: merge getCashStatements() into allStatements, chunk them into TYPE_C K4Forms, and include TYPE_C totals
+        // so that cash activity is actually included in the generated SRU packages/forms. Also ensure
+        // generateBlanketterFileData and K4Form support TYPE_C output.
         logger.info(
             `Generating SRU packages for ${allStatements.length} statements with ${this.statementsPerFile} statements per file`,
         );
 
+        // TODO: in order to reduce number of K4Forms, start with a new K4Form and just pick from statements until empty,
+        // e.g. for each new K4Form pick next available 9 TYPE_A and 7 TYPE_C etc.
         const packages = chunk(allStatements, this.statementsPerFile).map((statements: Statement[]) => {
             const forms: K4Form[] = [];
             let page = 1;

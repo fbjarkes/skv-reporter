@@ -11,7 +11,7 @@ describe('FlexQueryParser', () => {
     beforeEach(() => {
         flexParser = new FlexQueryParser();
     });
-
+    // Describe Non cash trades
     it('should parse single STK trade', async () => {
         const testFileData = await fs.readFile('test/fixtures/trade1.xml', 'utf8');
         flexParser.parse(testFileData);
@@ -42,7 +42,7 @@ describe('FlexQueryParser', () => {
         expect(trades[0].securityType).to.equal('STK');
         expect(trades[0].exitDateTime).to.equal('2015-01-08 16:00');
         expect(trades[0].commission).to.equal(-0.455307);
-        expect(trades[0].currency).to.equal('USD');
+        expect(trades[0].tradeCurrency).to.equal('USD');
         expect(trades[0].direction).to.equal('LONG');
         expect(trades[0].transactionType).to.equal('ExchTrade');
     });
@@ -127,7 +127,7 @@ describe('FlexQueryParser', () => {
         expect(trades[0].entryDateTime).to.equal('2017-09-14 15:55');
         expect(trades[0].exitDateTime).to.equal('');
         expect(trades[0].commission).to.equal(-1.0952556);
-        expect(trades[0].currency).to.equal('USD');
+        expect(trades[0].tradeCurrency).to.equal('USD');
         expect(trades[0].direction).to.equal('SHORT');
         expect(trades[0].transactionType).to.equal('ExchTrade');
     });
@@ -147,4 +147,6 @@ describe('FlexQueryParser', () => {
         expect(trades[0].exitDateTime).to.equal('');
         expect(trades[0].durationMin).to.equal(-1);
     });
+
+    //Describe CASH trades
 });

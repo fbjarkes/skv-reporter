@@ -1,0 +1,12 @@
+<FlexQueryResponse queryName="SKV Reporter MTD" type="AF">
+<FlexStatements count="1">
+<FlexStatement accountId="U002" fromDate="20250101" toDate="20251231" period="" whenGenerated="20260413;033923">
+<Trades>
+    <Trade currency="SEK" assetCategory="CASH" fxRateToBase="0.1" symbol="USD.SEK" description="USD.SEK" reportDate="20250115" tradeDate="20250115" transactionType="ExchTrade" quantity="500" tradePrice="20.0" proceeds="-10000" ibCommission="-2" ibCommissionCurrency="USD" closePrice="0" fifoPnlRealized="0" buySell="BUY" cost="0" openCloseIndicator="" openDateTime="" dateTime="20250115;065838" orderTime="20250115;065838" holdingPeriodDateTime="" whenRealized=""/>
+    <Trade currency="SEK" assetCategory="CASH" fxRateToBase="0.1" symbol="USD.SEK" description="USD.SEK" reportDate="20250115" tradeDate="20250115" transactionType="ExchTrade" quantity="500" tradePrice="19.5" proceeds="-9750" ibCommission="-2" ibCommissionCurrency="USD" closePrice="0" fifoPnlRealized="0" buySell="BUY" cost="0" openCloseIndicator="" openDateTime="" dateTime="20250115;085913" orderTime="20250115;085900" holdingPeriodDateTime="" whenRealized=""/>
+    <Trade currency="SEK" assetCategory="CASH" fxRateToBase="0.1" symbol="USD.SEK" description="USD.SEK" reportDate="20250618" tradeDate="20250618" transactionType="ExchTrade" quantity="-1000" tradePrice="19.0" proceeds="19000" ibCommission="-2" ibCommissionCurrency="USD" closePrice="0" fifoPnlRealized="0" buySell="SELL" cost="0" openCloseIndicator="" openDateTime="" dateTime="20250618;055525" orderTime="20250618;055524" holdingPeriodDateTime="" whenRealized=""/>
+
+</Trades>
+</FlexStatement>
+</FlexStatements>
+</FlexQueryResponse>

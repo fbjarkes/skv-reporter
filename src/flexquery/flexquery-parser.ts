@@ -25,7 +25,7 @@ interface FQTrade {
     _tradePrice: number;
     _proceeds: number;
     _ibCommission: number;
-    _ibCommissionCurrency: number;
+    _ibCommissionCurrency: string;
     _closePrice: number;
     _openCloseIndicator: string;
     _buySell: string;
@@ -205,8 +205,9 @@ export class FlexQueryParser {
                     t.proceeds = Number(item._proceeds);
                     t.cost = Number(item._cost);
                     t.commission = Number(item._ibCommission);
-                    t.currency = item._currency;
-                    t.transactionType = item._transactionType;
+                    t.commissionCurrency = item._ibCommissionCurrency;
+                    t.tradeCurrency = item._currency;
+                    t.transactionType = item._assetCategory === 'CASH' ? 'CASH' : item._transactionType;
                     t.openClose = item._openCloseIndicator;
 
                     if (item._openCloseIndicator === 'C' || item._openCloseIndicator === 'C;O') {
@@ -253,8 +254,8 @@ export class FlexQueryParser {
             } FX mappings`,
         );
 
-        const usdTrades = this.#trades.filter((t) => t.currency === 'USD');
-        const nonUsdTrades = this.#trades.filter((t) => t.currency !== 'USD');
+        const usdTrades = this.#trades.filter((t) => t.tradeCurrency === 'USD');
+        const nonUsdTrades = this.#trades.filter((t) => t.tradeCurrency !== 'USD');
         return {
             tradesCount: this.#trades.length,
             winnersCount: this.#trades.filter((t) => t.pnl > 0).length,
@@ -269,7 +270,7 @@ export class FlexQueryParser {
             lastTradeDate: lastTradeDate,
             largestLoser: largestLoser,
             largestWinner: largestWinner,
-            tradesNonUSDCount: this.#trades.filter((t) => t.currency !== 'USD').length,
+            tradesNonUSDCount: this.#trades.filter((t) => t.tradeCurrency !== 'USD').length,
             tradesUnhandledCount: this.#unhandled.length,
             ratesCount: this.#rates.size,
         };

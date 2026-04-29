@@ -141,3 +141,4 @@ yarn-error.log*
 main.ts
 SKV*.xml
 *.sru
+debug.log

@@ -5,6 +5,8 @@ import { K4Form } from '../types/k4-form';
 import { TradeType } from '../types/trade';
 import { generateBlanketterFileData, isCommodityFuture, SRUFile, SRUInfo } from './sru-file';
 import { K4_SEC_TYPE, K4_TYPE, Statement } from '../types/statement';
+import { CashPosition } from '../types/cash';
+
 
 chai.use(chaiAsPromised);
 
@@ -15,6 +17,12 @@ describe('SRU Files', () => {
             '2021-01-10': new Map(Object.entries({ 'USD/SEK': 9.1 })),
             '2020-01-10': new Map(Object.entries({ 'USD/SEK': 9.1 })),
             '2017-09-22': new Map(Object.entries({ 'USD/SEK': 7.98 })),
+            '2025-01-15': new Map(Object.entries({ 'USD/SEK': 10.0 })),
+            '2025-01-16': new Map(Object.entries({ 'USD/SEK': 10.0 })),
+            '2025-01-17': new Map(Object.entries({ 'USD/SEK': 10.0 })),
+            '2025-01-18': new Map(Object.entries({ 'USD/SEK': 10.0 })),
+            '2025-01-19': new Map(Object.entries({ 'USD/SEK': 10.0 })),
+
         }),
     );
 
@@ -39,7 +47,7 @@ describe('SRU Files', () => {
         t.commission = comm;
         t.pnl = pnl;
         t.transactionType = 'ExchTrade';
-        t.currency = 'USD';
+        t.tradeCurrency = 'USD';
         t.direction = qty > 0 ? 'LONG' : 'SHORT';
         return t;
     };
@@ -64,9 +72,13 @@ describe('SRU Files', () => {
         t.commission = comm;
         t.pnl = pnl;
         t.transactionType = 'ExchTrade';
-        t.currency = 'USD';
+        t.tradeCurrency = 'USD';
         t.direction = qty > 0 ? 'LONG' : 'SHORT';
         return t;
+    };
+
+    const _createCashTrade = (init: Partial<TradeType>): TradeType => {
+        return new TradeType({ transactionType: 'CASH', tradeCurrency: 'USD', ...init });
     };
 
     it('should create SRU info', () => {
@@ -99,182 +111,470 @@ describe('SRU Files', () => {
     });
 
     describe('SRU statements', () => {
-        it('should create valid statement from closing trades', () => {
-            const t1 = new TradeType();
-            t1.exitDateTime = '2021-01-11';
-            t1.symbol = 'SPY';
-            t1.description = 'SPY ETF...';
-            t1.quantity = -10;
-            t1.securityType = 'STK';
-            t1.proceeds = 1000;
-            t1.cost = -900;
-            t1.commission = -1;
-            t1.transactionType = 'ExchTrade';
-            t1.pnl = 99;
-            t1.currency = 'USD';
-            t1.openClose = 'C';
-            const sru = new SRUFile(fxRates, [t1]);
-            const statements = sru.getStatements();
-            expect(statements[0].pnl).to.equal(Math.round(99 * 10));
-            expect(statements[0].paid).to.equal(Math.round(-1 * (-900 - 1) * 10));
-            expect(statements[0].received).to.equal(Math.round(1000 * 10));
+
+        describe('TYPE_A (STK/OPT/FUT)', () => {
+            it('should create valid statement from closing trades', () => {
+                const t1 = new TradeType();
+                t1.exitDateTime = '2021-01-11';
+                t1.symbol = 'SPY';
+                t1.description = 'SPY ETF...';
+                t1.quantity = -10;
+                t1.securityType = 'STK';
+                t1.proceeds = 1000;
+                t1.cost = -900;
+                t1.commission = -1;
+                t1.transactionType = 'ExchTrade';
+                t1.pnl = 99;
+                t1.tradeCurrency = 'USD';
+                t1.openClose = 'C';
+                const sru = new SRUFile(fxRates, [t1]);
+                const statements = sru.getStatements();
+                expect(statements[0].pnl).to.equal(Math.round(99 * 10));
+                expect(statements[0].paid).to.equal(Math.round(-1 * (-900 - 1) * 10));
+                expect(statements[0].received).to.equal(Math.round(1000 * 10));
+            });
+
+            it('should create statement for non-USD trade correctly', () => {
+                const expiredOpt = new TradeType();
+                expiredOpt.description = 'OMXS30 MAR15 1565 P';
+                expiredOpt.exitDateTime = '2020-01-10';
+                expiredOpt.quantity = -1;
+                expiredOpt.proceeds = 0;
+                expiredOpt.cost = -1388.5;
+                expiredOpt.securityType = 'OPT';
+                expiredOpt.tradeCurrency = 'SEK';
+                expiredOpt.pnl = -1398.5;
+                expiredOpt.commission = -10;
+                expiredOpt.transactionType = 'ExchTrade';
+                const sru = new SRUFile(fxRates, [expiredOpt]);
+
+                const statements = sru.getStatements();
+
+                expect(statements[0].pnl).to.equal(-1398);
+                expect(statements[0].paid).to.equal(1398);
+                expect(statements[0].received).to.equal(0);
+            });
+
+            it('should handle short trades correctly', () => {
+                const t1 = new TradeType();
+                t1.tradeCurrency = 'USD';
+                t1.direction = 'SHORT';
+                t1.exitDateTime = '2017-09-22 14:21';
+                t1.exitPrice = 5.1;
+                t1.pnl = -436.19;
+                t1.cost = 74.9;
+                t1.proceeds = -510;
+                t1.commission = -1.0915;
+                t1.quantity = 1;
+                t1.securityType = 'OPT';
+                t1.symbol = 'APC';
+                t1.transactionType = 'ExchTrade';
+
+                const sru = new SRUFile(fxRates, [t1]);
+                const statements = sru.getStatements();
+                expect(statements[0].pnl).to.equal(-3481);
+                expect(statements[0].quantity).to.equal(1);
+                expect(statements[0].paid).to.equal(4079);
+                expect(statements[0].received).to.equal(598);
+            });
+
+            it('should not create statements for trades with PnL < 1 SEK', () => {
+                const t1 = new TradeType();
+                t1.tradeCurrency = 'USD';
+                t1.exitDateTime = '2017-09-22 14:21';
+                t1.exitPrice = 0;
+                t1.pnl = 0;
+                t1.cost = -68.59;
+                t1.proceeds = 0;
+                t1.commission = 0;
+                t1.quantity = -1;
+                t1.securityType = 'OPT';
+                t1.symbol = 'IWM';
+                t1.transactionType = 'BookTrade';
+                const t2 = new TradeType();
+                t2.exitDateTime = '2020-01-10';
+                t2.symbol = 'SPY';
+                t2.securityType = 'STK';
+                t2.pnl = 0.1;
+                t2.tradeCurrency = 'USD';
+                const t3 = new TradeType();
+                t3.exitDateTime = '2020-01-10';
+                t3.symbol = 'SPY';
+                t3.securityType = 'STK';
+                t3.pnl = 0.2;
+                t3.tradeCurrency = 'USD';
+
+                const sru = new SRUFile(fxRates, [t1, t2, t3]);
+                const statements = sru.getStatements();
+                expect(statements).to.be.of.length(1);
+            });
+
+            it('should throw error when including trade dates for wrong tax year', () => {
+                const t1 = new TradeType();
+                t1.exitDateTime = '2020-01-10';
+                t1.symbol = 'SPY';
+                t1.securityType = 'STK';
+                t1.pnl = 1;
+                const t2 = new TradeType();
+                t2.exitDateTime = '2021-01-10';
+                t2.symbol = 'SPY';
+                t2.securityType = 'STK';
+                t2.pnl = 1;
+
+                const sru = new SRUFile(fxRates, [t1, t2], { taxYear: 2021 });
+                expect(() => sru.getStatements()).to.throw(/Tax year mismatch/);
+            });
+            it('should throw error when missing FX rate for trade which must be converted', () => {
+                const t1 = new TradeType();
+                t1.exitDateTime = '2020-01-10';
+                t1.symbol = 'SPY';
+                t1.securityType = 'STK';
+                t1.pnl = 1;
+                t1.tradeCurrency = 'USD';
+                const t2 = new TradeType();
+                t2.exitDateTime = '2020-01-11';
+                t2.symbol = 'SPY';
+                t2.securityType = 'STK';
+                t2.pnl = 1;
+                t2.tradeCurrency = 'USD';
+                const sru = new SRUFile(fxRates, [t1, t2]);
+                expect(() => sru.getStatements()).to.throw('Missing USD/SEK rate for 2020-01-11');
+            });
+            it('should throw error for unsupported trade currency', () => {
+                const t1 = new TradeType();
+                t1.exitDateTime = '2020-01-10';
+                t1.symbol = 'BMW';
+                t1.securityType = 'STK';
+                t1.pnl = 1;
+                t1.tradeCurrency = 'EUR';
+                const sru = new SRUFile(fxRates, [t1]);
+                expect(() => sru.getStatements()).to.throw(/Unsupported currency 'EUR'/);
+            });
+            it('should handle "C;O" trades correctly', () => {
+                const t1 = new TradeType();
+                t1.symbol = 'M2KU1';
+                t1.quantity = -1;
+                t1.exitDateTime = '2021-01-11';
+                t1.openClose = 'O';
+                t1.securityType = 'FUT';
+                t1.cost = -11095.48;
+                t1.commission = -0.52;
+                t1.proceeds = -11096;
+                t1.pnl = 0;
+                t1.tradeCurrency = 'USD';
+                const t2 = new TradeType();
+                t2.symbol = 'M2KU1';
+                t2.quantity = 2;
+                t2.exitDateTime = '2021-01-11';
+                t2.openClose = 'C;O';
+                t2.securityType = 'FUT';
+                t2.cost = 11095.48;
+                t2.commission = -1.04;
+                t2.proceeds = -22405;
+                t2.pnl = -107.54;
+                t2.direction = 'SHORT';
+                t2.tradeCurrency = 'USD';
+                const t3 = new TradeType();
+                t3.symbol = 'M2KU1';
+                t3.quantity = -1;
+                t3.exitDateTime = '2021-01-11';
+                t3.openClose = 'C';
+                t3.securityType = 'FUT';
+                t3.cost = -11203.02;
+                t3.commission = -0.52;
+                t3.proceeds = 11160;
+                t3.pnl = -43.54;
+                t3.direction = 'LONG';
+                t3.tradeCurrency = 'USD';
+                const sru = new SRUFile(fxRates, [t1, t2, t3]);
+                const statements = sru.getStatements();
+                expect(statements).to.be.of.length(2);
+                expect(statements[0].pnl).to.equal(Math.round(-107.54 * 10));
+                expect(statements[1].pnl).to.equal(Math.round(-43.54 * 10));
+                // TODO: what should it really be?
+                //expect(statements[0].paid).to.equal(0);
+                //expect(statements[0].proceeds).to.equal(0);
+                //expect(statements[1].paid).to.equal(0);
+                //expect(statements[1].proceeds).to.equal(0);
+            });
         });
 
-        it('should create statement for non-USD trade correctly', () => {
-            const expiredOpt = new TradeType();
-            expiredOpt.description = 'OMXS30 MAR15 1565 P';
-            expiredOpt.exitDateTime = '2020-01-10';
-            expiredOpt.quantity = -1;
-            expiredOpt.proceeds = 0;
-            expiredOpt.cost = -1388.5;
-            expiredOpt.securityType = 'OPT';
-            expiredOpt.currency = 'SEK';
-            expiredOpt.pnl = -1398.5;
-            expiredOpt.commission = -10;
-            expiredOpt.transactionType = 'ExchTrade';
-            const sru = new SRUFile(fxRates, [expiredOpt]);
+        describe('TYPE_C (Cash)', () => {
+            // Manually added
+            it('should load initial values from positions file', () => {
+                //ASSET, ACCOUNT, YEAR, CUM_QTY, CUM_COST, AVG_COST, COMMENT
+                //USD_SEK, U001, 2024, 500, 10000, 20, "Initial value for trade1.xml test cash trades 500 @ 20.0 USD/SEK"
+                const cashPositions = [
+                    new CashPosition({symbol: 'USD/SEK', cumQty: 500, cumCost: 10000, currency: 'SEK'}),
+                    new CashPosition({symbol: 'BTC/USD', cumQty: 0.00555, cumCost: 300, currency: 'USD'})
+                ];
 
-            const statements = sru.getStatements();
+                const sru = new SRUFile(fxRates, []);
+            
+                sru.setInitialCashPositions(cashPositions);
+                const statements = sru.getStatements();
+                // Should have no statements, i.e. no SELL trades
+                expect(statements).to.be.empty;
+                
+                // Assert Cum. Qty, Cum. Cost and Avg. Price for USD/SEK
+                const pos = sru.getCashPosition('USD/SEK');
+                expect(pos).to.not.be.undefined;
+                expect(pos!.cumulativeQty).to.equal(500);
+                expect(pos!.cumulativeCost).to.equal(10000);
+                expect(pos!.averageCost).to.equal(20.0);
 
-            expect(statements[0].pnl).to.equal(-1398);
-            expect(statements[0].paid).to.equal(1398);
-            expect(statements[0].received).to.equal(0);
+                // Assert for BTC/USD
+                const pos2 = sru.getCashPosition('BTC/USD');
+                expect(pos2).to.not.be.undefined;
+                expect(pos2!.cumulativeQty).to.equal(0.00555);
+                expect(pos2!.cumulativeCost).to.equal(300);
+                expect(pos2!.averageCost).to.equal(54054.05405);
+            });
+            it('should process cum. cost, cum. cty and avg. price from buy trade', () => {                    
+                const t1 = _createCashTrade({ symbol: 'USD/SEK', direction: 'BUY', quantity: 500, entryPrice: 20.0, proceeds: -10000, commission: -2, commissionCurrency: 'USD', tradeCurrency: 'SEK', entryDateTime: '2025-01-15 12:00:00' });
+                const t2 = _createCashTrade({ symbol: 'USD/SEK', direction: 'BUY', quantity: 500, entryPrice: 10.0, proceeds: -5000, commission: -2, commissionCurrency: 'USD', tradeCurrency: 'SEK', entryDateTime: '2025-01-15 12:00:00' });
+                const sru = new SRUFile(fxRates, [t1, t2]);
+                const statements = sru.getStatements();
+                const cashStatements = sru.getCashStatements();
+                
+                // Should have no statements, i.e. no SELL trades
+                expect(statements).to.be.empty;
+                expect(cashStatements).to.be.empty;
+                
+                // CumQty=1000
+                // CumCost=15040 (proceeds + comm.)
+                // AvgPrice=15.04
+                const pos = sru.getCashPosition('USD/SEK');
+                expect(pos).to.not.be.undefined;
+                expect(pos!.cumulativeQty).to.equal(1000);
+                expect(pos!.cumulativeCost).to.equal(15040);
+                expect(pos!.averageCost).to.equal(15.04);
+            });
+
+            it('should create valid statement from sell trade', () => {
+                const t1 = new TradeType({symbol: 'USD/SEK', direction: 'BUY', quantity: 500, entryPrice: 20.0, proceeds: -10000, commission: -2, commissionCurrency: 'USD', tradeCurrency: 'SEK', entryDateTime: '2025-01-15 12:00:00', securityType: 'CASH', transactionType: 'CASH' });
+                const t2 = new TradeType({symbol: 'USD/SEK', direction: 'BUY', quantity: 500, entryPrice: 19.5, proceeds: -9750, commission: -2, commissionCurrency: 'USD', tradeCurrency: 'SEK', entryDateTime: '2025-01-15 13:00:00', securityType: 'CASH', transactionType: 'CASH' });
+                const t3 = new TradeType({symbol: 'USD/SEK', direction: 'SELL', quantity: -1000, exitPrice: 19.0, proceeds: 10000, commission: -2, commissionCurrency: 'USD', tradeCurrency: 'SEK', exitDateTime: '2025-01-16 13:00:00', securityType: 'CASH', transactionType: 'CASH' });
+                 const cashPositions = [
+                    new CashPosition({symbol: 'USD/SEK', cumQty: 0, cumCost: 0, currency: 'SEK'}),                    
+                ];
+                        
+                const sru = new SRUFile(fxRates, [t1, t2, t3]);
+                sru.setInitialCashPositions(cashPositions);
+
+                const statements = sru.getCashStatements();
+                const pos = sru.getCashPosition('USD/SEK');
+
+                // Assert pos is reset to 0 after sell
+                expect(pos).to.not.be.undefined;
+                expect(pos!.cumulativeQty).to.equal(0);
+                expect(pos!.cumulativeCost).to.equal(0);
+                expect(pos!.averageCost).to.equal(0);
+
+                //assert 1 statement
+                expect(statements).to.have.lengthOf(1);
+                const stmt = statements[0];
+                //assert date, quantity, proceeds, cost, pnl
+                expect(stmt.date).to.equal('2025-01-16');
+                expect(stmt.symbol).to.equal('USD/SEK');
+                expect(stmt.quantity).to.equal(1000);
+                expect(stmt.received).to.equal(19000);
+                expect(stmt.paid).to.equal(19810);
+                expect(stmt.pnl).to.equal(-810);
+            });
+
+             it('should create reset cash position and add new position again', () => {
+                const cashPositions = [
+                    new CashPosition({symbol: 'USD/SEK', cumQty: 1_000, cumCost: 10_020, currency: 'SEK'}), // Starting with 1000 USD/SEK @ 10.0 + commission (20SEK)                
+                ];
+                // Buy 1000 USD/SEK @ 20.0, avg. 15.0
+                // Sell 2000 USD/SEK @ 25.0, pnl: +20000ish
+                // Buy 1000 USD/SEK @ 10.0, avg. 10.0
+                // Buy 1000 USD/SEK @ 15.0, avg. 12.5ish 
+                // Sell 1000 USD/SEK @ 10, pnl: -2500ish
+                // Cash position: 1000 @ 12.5ish
+                const t1 = _createCashTrade({ symbol: 'USD/SEK', direction: 'BUY', quantity: 1000, entryPrice: 20.0, proceeds: -20_000, commission: -2, commissionCurrency: 'USD', tradeCurrency: 'SEK', entryDateTime: '2025-01-15 12:00:00' });
+                const t2 = _createCashTrade({ symbol: 'USD/SEK', direction: 'SELL', quantity: -2000, exitPrice: 25.0, proceeds: 50_000, commission: -2, commissionCurrency: 'USD', tradeCurrency: 'SEK', exitDateTime: '2025-01-16 12:00:00' });
+                const t3 = _createCashTrade({ symbol: 'USD/SEK', direction: 'BUY', quantity: 1000, entryPrice: 10.0, proceeds: -10_000, commission: -2, commissionCurrency: 'USD', tradeCurrency: 'SEK', entryDateTime: '2025-01-17 13:00:00' });
+                const t4 = _createCashTrade({ symbol: 'USD/SEK', direction: 'BUY', quantity: 1000, entryPrice: 15.0, proceeds: -15_000, commission: -2, commissionCurrency: 'USD', tradeCurrency: 'SEK', entryDateTime: '2025-01-18 14:00:00' });
+                const t5 = _createCashTrade({ symbol: 'USD/SEK', direction: 'SELL', quantity: -1000, exitPrice: 10.0, proceeds: 10_000, commission: -2, commissionCurrency: 'USD', tradeCurrency: 'SEK', exitDateTime: '2025-01-19 15:00:00' });
+
+                const sru = new SRUFile(fxRates, [t1, t2, t3, t4, t5]);
+                sru.setInitialCashPositions(cashPositions);
+
+                const statements = sru.getCashStatements();
+                const cashPos = sru.getCashPosition('USD/SEK');
+
+                // Assert pos is reset to 0 after first sell, then updated again after next trades
+                expect(cashPos).to.not.be.undefined;
+                expect(cashPos!.cumulativeQty).to.equal(1_000);
+                expect(cashPos!.cumulativeCost).to.equal(12_520);
+                expect(cashPos!.averageCost).to.equal(12.52);
+
+                //assert 2 statements
+                expect(statements).to.have.lengthOf(2);
+                const stmt1 = statements[0];
+                expect(stmt1.date).to.equal('2025-01-16');
+                expect(stmt1.symbol).to.equal('USD/SEK');
+                expect(stmt1.quantity).to.equal(2000);
+                expect(stmt1.received).to.equal(50_000);
+                expect(stmt1.paid).to.equal(30_060);
+                expect(stmt1.pnl).to.equal(19_940);
+
+                const stmt2 = statements[1];
+                expect(stmt2.date).to.equal('2025-01-19');
+                expect(stmt2.symbol).to.equal('USD/SEK');
+                expect(stmt2.quantity).to.equal(1000);
+                expect(stmt2.received).to.equal(10_000);
+                expect(stmt2.paid).to.equal(12_540);
+                expect(stmt2.pnl).to.equal(-2_540);
+
+             });            
         });
+        
+        // describe('TYPE_C Cash trades (Average Cost Method)', () => {
+        //     // AI generated
+        //     const _createCash = (symbol: string, qty: number, price: number, commission = 0, dateTime = '2021-01-10'): TradeType => {
+        //         return new TradeType({ symbol, quantity: qty, price, commission, dateTime, transactionType: 'CASH' });
+        //     };
 
-        it('should handle short trades correctly', () => {
-            const t1 = new TradeType();
-            t1.currency = 'USD';
-            t1.direction = 'SHORT';
-            t1.exitDateTime = '2017-09-22 14:21';
-            t1.exitPrice = 5.1;
-            t1.pnl = -436.19;
-            t1.cost = 74.9;
-            t1.proceeds = -510;
-            t1.commission = -1.0915;
-            t1.quantity = 1;
-            t1.securityType = 'OPT';
-            t1.symbol = 'APC';
-            t1.transactionType = 'ExchTrade';
+        //     it('should track cumulative position after two buys', () => {
+        //         // Buy 1000 USD @ 9.0 SEK → cumCost=9000
+        //         // Buy 1000 USD @ 10.0 SEK → cumCost=19000, avgCost=9.5
+        //         const buy1 = _createCash('USD', 1000, 9.0);
+        //         const buy2 = _createCash('USD', 1000, 10.0);
+        //         const sru = new SRUFile(new Map(), [], undefined, [buy1, buy2]);
 
-            const sru = new SRUFile(fxRates, [t1]);
-            const statements = sru.getStatements();
-            expect(statements[0].pnl).to.equal(-3481);
-            expect(statements[0].quantity).to.equal(1);
-            expect(statements[0].paid).to.equal(4079);
-            expect(statements[0].received).to.equal(598);
-        });
+        //         const pos = sru.getCashPosition('USD');
+        //         expect(pos).to.not.be.undefined;
+        //         expect(pos!.cumulativeQty).to.equal(2000);
+        //         expect(pos!.cumulativeCost).to.equal(19000);
+        //         expect(pos!.averageCost).to.equal(9.5);
+        //     });
 
-        it('should not create statements for trades with PnL < 1 SEK', () => {
-            const t1 = new TradeType();
-            t1.currency = 'USD';
-            t1.exitDateTime = '2017-09-22 14:21';
-            t1.exitPrice = 0;
-            t1.pnl = 0;
-            t1.cost = -68.59;
-            t1.proceeds = 0;
-            t1.commission = 0;
-            t1.quantity = -1;
-            t1.securityType = 'OPT';
-            t1.symbol = 'IWM';
-            t1.transactionType = 'BookTrade';
-            const t2 = new TradeType();
-            t2.exitDateTime = '2020-01-10';
-            t2.symbol = 'SPY';
-            t2.securityType = 'STK';
-            t2.pnl = 0.1;
-            t2.currency = 'USD';
-            const t3 = new TradeType();
-            t3.exitDateTime = '2020-01-10';
-            t3.symbol = 'SPY';
-            t3.securityType = 'STK';
-            t3.pnl = 0.2;
-            t3.currency = 'USD';
+        //     it('should include commission in cost when buying', () => {
+        //         // Buy 1000 USD @ 9.0 SEK with 10 SEK commission → cumCost=9010
+        //         const buy = _createCash('USD', 1000, 9.0, 10);
+        //         const sru = new SRUFile(new Map(), [], undefined, [buy]);
 
-            const sru = new SRUFile(fxRates, [t1, t2, t3]);
-            const statements = sru.getStatements();
-            expect(statements).to.be.of.length(1);
-        });
+        //         const pos = sru.getCashPosition('USD');
+        //         expect(pos!.cumulativeCost).to.equal(9010);
+        //         expect(pos!.cumulativeQty).to.equal(1000);
+        //         expect(pos!.averageCost).to.equal(9.01);
+        //     });
 
-        it('should throw error when including trade dates for wrong tax year', () => {
-            const t1 = new TradeType();
-            t1.exitDateTime = '2020-01-10';
-            t1.symbol = 'SPY';
-            t1.securityType = 'STK';
-            t1.pnl = 1;
-            const t2 = new TradeType();
-            t2.exitDateTime = '2021-01-10';
-            t2.symbol = 'SPY';
-            t2.securityType = 'STK';
-            t2.pnl = 1;
+        //     it('should reduce position correctly after a sell', () => {
+        //         // Buy 2000 USD @ 9.5 avg, then sell 1000 USD
+        //         // Remaining: 1000 USD @ 9.5 avgCost, cumCost=9500
+        //         const buy1 = _createCash('USD', 1000, 9.0);
+        //         const buy2 = _createCash('USD', 1000, 10.0);
+        //         const sell = _createCash('USD', -1000, 11.0);
+        //         const sru = new SRUFile(new Map(), [], undefined, [buy1, buy2, sell]);
 
-            const sru = new SRUFile(fxRates, [t1, t2], { taxYear: 2021 });
-            expect(() => sru.getStatements()).to.throw(/Tax year mismatch/);
-        });
-        it('should throw error when missing FX rate for trade which must be converted', () => {
-            const t1 = new TradeType();
-            t1.exitDateTime = '2020-01-10';
-            t1.symbol = 'SPY';
-            t1.securityType = 'STK';
-            t1.pnl = 1;
-            t1.currency = 'USD';
-            const t2 = new TradeType();
-            t2.exitDateTime = '2020-01-11';
-            t2.symbol = 'SPY';
-            t2.securityType = 'STK';
-            t2.pnl = 1;
-            t2.currency = 'USD';
-            const sru = new SRUFile(fxRates, [t1, t2]);
-            expect(() => sru.getStatements()).to.throw('Missing USD/SEK rate for 2020-01-11');
-        });
-        it('should throw error for unsupported trade currency', () => {
-            const t1 = new TradeType();
-            t1.exitDateTime = '2020-01-10';
-            t1.symbol = 'BMW';
-            t1.securityType = 'STK';
-            t1.pnl = 1;
-            t1.currency = 'EUR';
-            const sru = new SRUFile(fxRates, [t1]);
-            expect(() => sru.getStatements()).to.throw(/Unsupported currency 'EUR'/);
-        });
-        it('should handle "C;O" trades correctly', () => {
-            const t1 = new TradeType('M2KU1', -1, 2219.2, 0, '2021-01-11', '2021-01-11');
-            t1.openClose = 'O';
-            t1.securityType = 'FUT';
-            t1.cost = -11095.48;
-            t1.commission = -0.52;
-            t1.proceeds = -11096;
-            t1.pnl = 0;
-            t1.currency = 'USD';
-            const t2 = new TradeType('M2KU1', 2, 0, 2240.5, '2021-01-11', '2021-01-11');
-            t2.openClose = 'C;O';
-            t2.securityType = 'FUT';
-            t2.cost = 11095.48;
-            t2.commission = -1.04;
-            t2.proceeds = -22405;
-            t2.pnl = -107.54;
-            t2.direction = 'SHORT';
-            t2.currency = 'USD';
-            const t3 = new TradeType('M2KU1', -1, 0, 2232, '2021-01-11', '2021-01-11');
-            t3.openClose = 'C';
-            t3.securityType = 'FUT';
-            t3.cost = -11203.02;
-            t3.commission = -0.52;
-            t3.proceeds = 11160;
-            t3.pnl = -43.54;
-            t3.direction = 'LONG';
-            t3.currency = 'USD';
-            const sru = new SRUFile(fxRates, [t1, t2, t3]);
-            const statements = sru.getStatements();
-            expect(statements).to.be.of.length(2);
-            expect(statements[0].pnl).to.equal(Math.round(-107.54 * 10));
-            expect(statements[1].pnl).to.equal(Math.round(-43.54 * 10));
-            // TODO: what should it really be?
-            //expect(statements[0].paid).to.equal(0);
-            //expect(statements[0].proceeds).to.equal(0);
-            //expect(statements[1].paid).to.equal(0);
-            //expect(statements[1].proceeds).to.equal(0);
-        });
+        //         const pos = sru.getCashPosition('USD');
+        //         expect(pos!.cumulativeQty).to.equal(1000);
+        //         expect(pos!.cumulativeCost).to.be.closeTo(9500, 0.01);
+        //         expect(pos!.averageCost).to.be.closeTo(9.5, 0.001);
+        //     });
+
+        //     it('should calculate PnL correctly for a sell using average cost', () => {
+        //         // Buy 1000 @ 9.0 + Buy 1000 @ 10.0 → avgCost=9.5
+        //         // Sell 1000 @ 11.0 → received=11000, paid=9500, pnl=1500
+        //         const buy1 = _createCash('USD', 1000, 9.0);
+        //         const buy2 = _createCash('USD', 1000, 10.0);
+        //         const sell = _createCash('USD', -1000, 11.0);
+        //         const sru = new SRUFile(new Map(), [], undefined, [buy1, buy2, sell]);
+
+        //         const statements = sru.getCashStatements();
+        //         expect(statements).to.have.length(1);
+        //         expect(statements[0].type).to.equal(K4_TYPE.TYPE_C);
+        //         expect(statements[0].quantity).to.equal(1000);
+        //         expect(statements[0].received).to.equal(11000);
+        //         expect(statements[0].paid).to.equal(9500);
+        //         expect(statements[0].pnl).to.equal(1500);
+        //     });
+
+        //     it('should deduct commission from proceeds when selling', () => {
+        //         // Buy 1000 @ 9.0, sell 1000 @ 11.0 with 10 SEK commission
+        //         // received=11000-10=10990, paid=9000, pnl=1990
+        //         const buy = _createCash('USD', 1000, 9.0);
+        //         const sell = _createCash('USD', -1000, 11.0, 10);
+        //         const sru = new SRUFile(new Map(), [], undefined, [buy, sell]);
+
+        //         const statements = sru.getCashStatements();
+        //         expect(statements[0].received).to.equal(10990);
+        //         expect(statements[0].paid).to.equal(9000);
+        //         expect(statements[0].pnl).to.equal(1990);
+        //     });
+
+        //     it('should produce two statements for two separate sells', () => {
+        //         // Buy 2000 @ avg 9.5, sell 1000 @ 11.0 → pnl=1500
+        //         // Buy 500 more @ 12.0 → cumQty=1500, cumCost=9500+6000=15500, avg≈10.333
+        //         // Sell 500 @ 13.0 → received=6500, paid=500*10.333≈5167, pnl≈1333
+        //         const buy1 = _createCash('USD', 1000, 9.0, 0, '2021-01-01');
+        //         const buy2 = _createCash('USD', 1000, 10.0, 0, '2021-01-02');
+        //         const sell1 = _createCash('USD', -1000, 11.0, 0, '2021-01-03');
+        //         const buy3 = _createCash('USD', 500, 12.0, 0, '2021-01-04');
+        //         const sell2 = _createCash('USD', -500, 13.0, 0, '2021-01-05');
+        //         const sru = new SRUFile(new Map(), [], undefined, [buy1, buy2, sell1, buy3, sell2]);
+
+        //         const statements = sru.getCashStatements();
+        //         expect(statements).to.have.length(2);
+        //         expect(statements[0].pnl).to.equal(1500);
+        //         // After sell1: remaining 1000 USD @ 9.5 avg (cost=9500)
+        //         // After buy3: 1500 USD, cost=9500+6000=15500, avg=15500/1500≈10.333...
+        //         // sell2: paid=round(500*15500/1500)=round(5166.67)=5167, received=6500, pnl=1333
+        //         expect(statements[1].paid).to.equal(5167);
+        //         expect(statements[1].received).to.equal(6500);
+        //         expect(statements[1].pnl).to.equal(1333);
+        //     });
+
+        //     it('should not create statement when PnL is less than 1 SEK', () => {
+        //         // Buy 1000 @ 9.0, sell 1000 @ 9.0 → pnl=0
+        //         const buy = _createCash('USD', 1000, 9.0);
+        //         const sell = _createCash('USD', -1000, 9.0);
+        //         const sru = new SRUFile(new Map(), [], undefined, [buy, sell]);
+
+        //         const statements = sru.getCashStatements();
+        //         expect(statements).to.have.length(0);
+        //     });
+
+        //     it('should handle an initial position set via addInitialPosition', () => {
+        //         // Initial position: 500 USD @ 8.0 avg (cost=4000)
+        //         // Buy 500 USD @ 9.0 → cumQty=1000, cumCost=8500, avg=8.5
+        //         // Sell 500 USD @ 10.0 → received=5000, paid=500*8.5=4250, pnl=750
+        //         const buy = _createCash('USD', 500, 9.0);
+        //         const sell = _createCash('USD', -500, 10.0);
+        //         const sru = new SRUFile(new Map(), [], undefined, [buy, sell]);
+        //         sru.setInitialCashPosition('USD', 500, 4000);
+
+        //         const pos = sru.getCashPosition('USD');
+        //         expect(pos!.cumulativeQty).to.equal(500);
+        //         expect(pos!.cumulativeCost).to.be.closeTo(4250, 0.01);
+
+        //         const statements = sru.getCashStatements();
+        //         expect(statements).to.have.length(1);
+        //         expect(statements[0].paid).to.equal(4250);
+        //         expect(statements[0].received).to.equal(5000);
+        //         expect(statements[0].pnl).to.equal(750);
+        //     });
+
+        //     it('should track independent positions for different symbols', () => {
+        //         const buyUSD = _createCash('USD', 1000, 9.0);
+        //         const buyEUR = _createCash('EUR', 500, 10.5);
+        //         const sru = new SRUFile(new Map(), [], undefined, [buyUSD, buyEUR]);
+
+        //         const usdPos = sru.getCashPosition('USD');
+        //         const eurPos = sru.getCashPosition('EUR');
+
+        //         expect(usdPos!.cumulativeQty).to.equal(1000);
+        //         expect(usdPos!.cumulativeCost).to.equal(9000);
+        //         expect(eurPos!.cumulativeQty).to.equal(500);
+        //         expect(eurPos!.cumulativeCost).to.equal(5250);
+        //     });
+        // });
     });
+
 
     describe('K4 forms', () => {
         it('should add statements', () => {
