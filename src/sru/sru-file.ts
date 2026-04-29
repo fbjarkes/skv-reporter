@@ -206,7 +206,7 @@ export class SRUFile {
                 return Math.abs(trade.commission * rate);
             }
             if (trade.tradeCurrency != trade.commissionCurrency) {
-                throw new Error(`Unsupported commission currency '${trade.commissionCurrency} for trade currency '${trade.tradeCurrency}'`);
+                throw new Error(`Unsupported commission currency '${trade.commissionCurrency}' for trade currency '${trade.tradeCurrency}'`);
             }
             return Math.abs(trade.commission);
         };
@@ -227,7 +227,9 @@ export class SRUFile {
         const statements: Statement[] = [];
         let id = 0;
 
-        const cashTrades = this.trades.filter((trade) => trade.transactionType === 'CASH');
+        const cashTrades = this.trades.filter(
+            (trade) => trade.transactionType === 'CASH' || trade.securityType === 'CASH',
+        );
         cashTrades.forEach((trade: TradeType) => {
             const dateTime = trade.direction === 'BUY' ? trade.entryDateTime : trade.exitDateTime;
             if (this.sruInfo?.taxYear && this.sruInfo?.taxYear !== Number(dateTime.substring(0, 4))) {
