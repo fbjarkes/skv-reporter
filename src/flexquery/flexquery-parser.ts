@@ -25,7 +25,7 @@ interface FQTrade {
     _tradePrice: number;
     _proceeds: number;
     _ibCommission: number;
-    _ibCommissionCurrency: number;
+    _ibCommissionCurrency: string;
     _closePrice: number;
     _openCloseIndicator: string;
     _buySell: string;
