@@ -1,6 +1,7 @@
 export class CashType {
     dateTime = '';
     symbol = '';
+    side = '';
     quantity = 0;
     price = 0;
     commission = 0;

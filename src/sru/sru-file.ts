@@ -228,7 +228,7 @@ export class SRUFile {
 
         const statements: Statement[] = [];
         let id = 0;
-        let rate: undefined | number = undefined;
+        
         //TODO: really ned CashType?
         this.cashTrades.forEach((trade: CashType) => {
             if (this.sruInfo?.taxYear && this.sruInfo?.taxYear !== Number(trade.dateTime.substring(0, 4))) {
@@ -239,14 +239,14 @@ export class SRUFile {
             
             const symbol = trade.symbol;
             if (!this.cashPositions.has(symbol)) {
-                this.cashPositions.set(symbol, new CashPosition(symbol, 0, 0, trade.tradeCurrency));
+                this.cashPositions.set(symbol, new CashPosition({ symbol, cumQty: 0, cumCost: 0, currency: trade.tradeCurrency }));
                 logger.info(`${symbol}: Initializing cash position for symbol with 0 qty and 0 cost in currency ${trade.tradeCurrency}`);
             }
             const pos = this.cashPositions.get(symbol)!;
 
             //TODO: use field 'buySell' instead of checking?
             if (trade.quantity > 0) {
-                const totalCost = trade.proceeds + _convertCommission(trade); 
+                const totalCost = Math.abs(trade.proceeds) + _convertCommission(trade); 
                 pos.cumulativeCost += totalCost;
                 pos.cumulativeQty += trade.quantity;
 

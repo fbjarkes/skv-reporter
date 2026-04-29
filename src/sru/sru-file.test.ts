@@ -17,6 +17,7 @@ describe('SRU Files', () => {
             '2021-01-10': new Map(Object.entries({ 'USD/SEK': 9.1 })),
             '2020-01-10': new Map(Object.entries({ 'USD/SEK': 9.1 })),
             '2017-09-22': new Map(Object.entries({ 'USD/SEK': 7.98 })),
+            '2025-01-15': new Map(Object.entries({ 'USD/SEK': 10.0 })),
         }),
     );
 
@@ -311,52 +312,17 @@ describe('SRU Files', () => {
                 expect(pos2!.cumulativeCost).to.equal(300);
                 expect(pos2!.averageCost).to.equal(54054.05405);
             });
-            it('should process cum. cost, cum. cty and avg. price from buy trade', () => {
-                const args1 = {
-                    symbol: 'USD/SEK',
-                    side: 'BUY',
-                    quantity: 500,
-                    price: 20.0,
-                    proceeds: -10000,
-                    commission: -2,
-                    commissionCurrency: 'USD',
-                    dateTime: '2025-01-15 12:00:00',
-                    securityType: 'CASH',
-                };
-                const args2 = {
-                    symbol: 'USD/SEK',
-                    side: 'BUY',
-                    quantity: 500,
-                    price: 10.0,
-                    proceeds: -5000,
-                    commission: -2,
-                    commissionCurrency: 'USD',
-                    dateTime: '2025-01-15 13:00:00',
-                    securityType: 'CASH',
-                };
-                const cashPositions = [
-                    {
-                        asset: 'USD/SEK',
-                        account: 'U001',
-                        year: 2024,
-                        cumQty: 0,
-                        cumCost: 0,
-                        avgCost: 0,
-                    },
-                ];
-                //const t1 = new CashType()
-                // Create CashType instances from args (commission in SEK set to 2 to match expected values)
-                const t1 = new CashType(args1);
-                const t2 = new CashType(args2);
-                const trades: CashType[] = [t1, t2];
-                const sru = new SRUFile(fxRates, [], trades);
+            it('should process cum. cost, cum. cty and avg. price from buy trade', () => {                    
+                const t1 = new CashType( {symbol: 'USD/SEK', side: 'BUY', quantity: 500, price: 20.0, proceeds: -10000, commission: -2, commissionCurrency: 'USD', dateTime: '2025-01-15 12:00:00',securityType: 'CASH'});
+                const t2 = new CashType( {symbol: 'USD/SEK', side: 'BUY', quantity: 500, price: 10.0, proceeds: -5000, commission: -2, commissionCurrency: 'USD', dateTime: '2025-01-15 12:00:00',securityType: 'CASH'});
+                const sru = new SRUFile(fxRates, [], [t1, t2]);
                 const statements = sru.getStatements();
                 const cashStatements = sru.getCashStatements();
+                
                 // Should have no statements, i.e. no SELL trades
                 expect(statements).to.be.empty;
                 expect(cashStatements).to.be.empty;
-
-                // TODO: assert Cum. Qty, Cum. Cost and Avg. Price
+                
                 // CumQty=1000
                 // CumCost=15040 (proceeds + comm.)
                 // AvgPrice=15.04
