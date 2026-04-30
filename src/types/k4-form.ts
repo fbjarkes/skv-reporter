@@ -71,6 +71,49 @@ export class K4Form {
         return lines;
     }
 
+    public generateLinesTypeC(): string[] {
+        if (this.statements.length === 0) {
+            throw new Error('Form contains no statements');
+        }
+        if (this.statements.length > MAX_TYPE_C_STATEMENTS) {
+            throw new Error(`Form contains too many statements for this K4 type ${this.type}`);
+        }
+        const str = format(this.created, DATETIME_FORMAT);
+        const lines = [`#BLANKETT ${this.title}`, `#IDENTITET ${this.id} ${str}`, `#UPPGIFT 7014 ${this.pageNumber}`];
+
+        let receivedSum = 0;
+        let costSum = 0;
+        let profitSum = 0;
+        let lossSum = 0;
+
+        this.statements
+            .filter((s: Statement) => s.type === K4_TYPE.TYPE_C)
+            .forEach((s: Statement, i) => {
+                const base = 331 + i;
+                lines.push(`#UPPGIFT ${base}0 ${s.quantity}`);
+                lines.push(`#UPPGIFT ${base}1 ${s.symbol}`);
+                lines.push(`#UPPGIFT ${base}2 ${s.received}`);
+                lines.push(`#UPPGIFT ${base}3 ${s.paid}`);
+
+                if (s.pnl > 0) {
+                    lines.push(`#UPPGIFT ${base}4 ${s.pnl}`);
+                    profitSum += s.pnl;
+                } else {
+                    lines.push(`#UPPGIFT ${base}5 ${Math.abs(s.pnl)}`);
+                    lossSum += Math.abs(s.pnl);
+                }
+                receivedSum += s.received;
+                costSum += s.paid;
+            });
+
+        lines.push(`#UPPGIFT 3400 ${receivedSum}`);
+        lines.push(`#UPPGIFT 3401 ${costSum}`);
+        lines.push(`#UPPGIFT 3403 ${profitSum}`);
+        lines.push(`#UPPGIFT 3404 ${lossSum}`);
+        lines.push(`#BLANKETTSLUT`);
+        return lines;
+    }
+
     public generateLinesTypeD(): string[] {
         if (this.statements.length === 0) {
             throw new Error('Form contains no statements');
