@@ -83,7 +83,10 @@ const main = async () => {
         console.warn(`Unhandled:    ${stats.tradesUnhandledCount} trades skipped`);
     }
 
-    const trades = flexParser.getClosingTrades();
+    const trades = [
+        ...flexParser.getClosingTrades(),
+        ...flexParser.getAllTrades().filter((t) => t.securityType === 'CASH'),
+    ];
     const rates = flexParser.getConversionRates();
 
     const sruFile = new SRUFile(rates, trades, sruInfo);

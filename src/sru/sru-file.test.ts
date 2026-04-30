@@ -866,15 +866,9 @@ describe('SRU Files', () => {
                         pnl: 100,
                         type: K4_TYPE.TYPE_C,
                         secType: K4_SEC_TYPE.CASH,
-                    })
+                    }),
                 );
-                const form = new K4Form(
-                    'K4-2021P4',
-                    1,
-                    '19900101-1234',
-                    new Date(2021, 0, 1, 14, 30, 0),
-                    statements
-                );
+                const form = new K4Form('K4-2021P4', 1, '19900101-1234', new Date(2021, 0, 1, 14, 30, 0), statements);
 
                 expect(() => form.generateLinesTypeC()).to.throw();
             });
@@ -890,7 +884,22 @@ describe('SRU Files', () => {
             const t1 = _createTrade('SPY', 900, 1001, 10, 100, 100, 'STK', '2021-01-11');
             const t2 = _createFutTrade('MNQM1', 900, 1001, 1, 100);
             const t3 = _createFutTrade('MCLM1', 900, 1001, 1, 100);
-            const sru = new SRUFile(fxRates, [t1, t2, t3], {
+            const t4 = _createCashTrade({
+                symbol: 'USD/SEK',
+                direction: 'SELL',
+                quantity: -500,
+                exitPrice: 15.0,
+                proceeds: 7500,
+                commission: -2,
+                commissionCurrency: 'USD',
+                tradeCurrency: 'SEK',
+                exitDateTime: '2021-01-11 12:00:00',
+            });
+            const cashPositions = [
+                new CashPosition({ symbol: 'USD/SEK', cumQty: 500, cumCost: 10000, currency: 'SEK' }), // 500 @ 20.0 USDSEK, then sell 500 @ 15.0 USDSEK, pnl: -2500 without commission
+                new CashPosition({ symbol: 'BTC/USD', cumQty: 0.00555, cumCost: 300, currency: 'USD' }),
+            ];
+            const sru = new SRUFile(fxRates, [t1, t2, t3, t4], {
                 name: 'TEST',
                 surname: 'TEST',
                 mail: 'TEST',
@@ -899,20 +908,28 @@ describe('SRU Files', () => {
                 taxYear: 2021,
                 id: '19900101-1234',
             });
+            sru.setInitialCashPositions(cashPositions);
 
             const packages = sru.getSRUPackages();
             expect(packages).to.have.lengthOf(1);
-            expect(packages[0].totals).to.have.lengthOf(2);
+            expect(packages[0].forms).to.have.length(3);
+            expect(packages[0].statements).to.have.length(4);
+            expect(packages[0].totals).to.have.lengthOf(3);
             expect(packages[0].totals[0].type).to.equal(K4_TYPE.TYPE_A);
             expect(packages[0].totals[0].totalReceived).to.equal(1001 * 10 + 1001 * 10);
             expect(packages[0].totals[0].totalPaid).to.equal((900 + 10) * 10 + (900 + 1) * 10);
             expect(packages[0].totals[0].totalLoss).to.equal(0);
             expect(packages[0].totals[0].totalProfit).to.equal(100 * 10 + 100 * 10);
-            expect(packages[0].totals[1].type).to.equal(K4_TYPE.TYPE_D);
-            expect(packages[0].totals[1].totalReceived).to.equal(1001 * 10);
-            expect(packages[0].totals[1].totalPaid).to.equal((900 + 1) * 10);
-            expect(packages[0].totals[1].totalLoss).to.equal(0);
-            expect(packages[0].totals[1].totalProfit).to.equal(100 * 10);
+            expect(packages[0].totals[1].type).to.equal(K4_TYPE.TYPE_C);
+            expect(packages[0].totals[1].totalReceived).to.equal(7500);
+            expect(packages[0].totals[1].totalPaid).to.equal(10020);
+            expect(packages[0].totals[1].totalLoss).to.equal(-2520);
+            expect(packages[0].totals[1].totalProfit).to.equal(0);
+            expect(packages[0].totals[2].type).to.equal(K4_TYPE.TYPE_D);
+            expect(packages[0].totals[2].totalReceived).to.equal(1001 * 10);
+            expect(packages[0].totals[2].totalPaid).to.equal((900 + 1) * 10);
+            expect(packages[0].totals[2].totalLoss).to.equal(0);
+            expect(packages[0].totals[2].totalProfit).to.equal(100 * 10);
         });
 
         it('should generate blanketter.sru data for each SRUPackage', () => {
