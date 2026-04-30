@@ -848,6 +848,36 @@ describe('SRU Files', () => {
                 const lines = form.generateLinesTypeC();
                 expect(lines).to.have.members(expectedLines);
             });
+
+            it('should throw when generating TYPE C lines for an empty form', () => {
+                const form = new K4Form('K4-2021P4', 1, '19900101-1234', new Date(2021, 0, 1, 14, 30, 0), []);
+
+                expect(() => form.generateLinesTypeC()).to.throw();
+            });
+
+            it('should throw when generating TYPE C lines for more than 7 statements', () => {
+                const statements = Array.from({ length: 8 }, (_, index) =>
+                    _createStatement({
+                        id: index + 1,
+                        quantity: 1000,
+                        symbol: `USD/SEK ${index + 1}`,
+                        received: 1000 + index,
+                        paid: 900 + index,
+                        pnl: 100,
+                        type: K4_TYPE.TYPE_C,
+                        secType: K4_SEC_TYPE.CASH,
+                    })
+                );
+                const form = new K4Form(
+                    'K4-2021P4',
+                    1,
+                    '19900101-1234',
+                    new Date(2021, 0, 1, 14, 30, 0),
+                    statements
+                );
+
+                expect(() => form.generateLinesTypeC()).to.throw();
+            });
         });
 
         describe('TYPE D', () => {
