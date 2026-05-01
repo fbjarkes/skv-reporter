@@ -268,7 +268,7 @@ export class SRUFile {
             }
             const pos = this.cashPositions.get(symbol)!;
             logger.info(
-                `${pos.symbol}: Using cash Position qty=${pos.cumulativeQty}, cost=${pos.cumulativeCost}, currency=${pos.currency} (trade=${trade})`,
+                `${pos.symbol}: Using cash Position qty=${pos.cumulativeQty}, cost=${pos.cumulativeCost}, currency=${pos.currency}, for trade='${trade}'`,
             );
 
             //TODO: use field 'buySell' instead of checking?
@@ -278,6 +278,18 @@ export class SRUFile {
                 pos.cumulativeQty += trade.quantity;
                 // No statement needed
             } else if (trade.quantity < 0) {
+                // if saleQty is larger than current position, then we skip this trade
+                if (Math.abs(trade.quantity) > pos.cumulativeQty) {
+                    //TODO: perhaps throw error?
+                    logger.warn(
+                        `${pos.symbol}: Skipping cash trade with quantity ${Math.abs(
+                            trade.quantity,
+                        )} since it exceeds current cash position quantity ${
+                            pos.cumulativeQty
+                        } for symbol (Trade=${trade})`,
+                    );
+                    return;
+                }
                 // Update position
                 const saleQty = Math.abs(trade.quantity);
                 const avgCost = pos.averageCost;

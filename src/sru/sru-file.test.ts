@@ -552,7 +552,66 @@ describe('SRU Files', () => {
                 expect(stmt2.pnl).to.equal(-2_540);
             });
 
-            it('should handle sell trade with no initial position', () => {});
+            it('should handle sell trade with no initial position', () => {
+                const t1 = new TradeType({
+                    symbol: 'USD/SEK',
+                    direction: 'SELL',
+                    quantity: -500,
+                    exitPrice: 20,
+                    proceeds: 10000,
+                    commission: -2,
+                    commissionCurrency: 'USD',
+                    tradeCurrency: 'SEK',
+                    exitDateTime: '2025-01-16 13:00:00',
+                    securityType: 'CASH',
+                });
+
+                //const cashPositions = [new CashPosition({ symbol: 'USD/SEK', cumQty: 0, cumCost: 0, currency: 'SEK' })];
+                const sru = new SRUFile(fxRates, [t1]);
+
+                const statements = sru.getCashStatements();
+                const pos = sru.getCashPosition('USD/SEK');
+
+                // assert pos is zero
+                expect(pos).to.not.be.undefined;
+                expect(pos!.cumulativeQty).to.equal(0);
+                expect(pos!.cumulativeCost).to.equal(0);
+                expect(pos!.averageCost).to.equal(0);
+
+                // assert no statement
+                expect(statements).to.be.empty;
+            });
+
+            it('should handle sell trade with too small initial position', () => {
+                const t1 = new TradeType({
+                    symbol: 'USD/SEK',
+                    direction: 'SELL',
+                    quantity: -500,
+                    exitPrice: 20,
+                    proceeds: 10000,
+                    commission: -2,
+                    commissionCurrency: 'USD',
+                    tradeCurrency: 'SEK',
+                    exitDateTime: '2025-01-16 13:00:00',
+                    securityType: 'CASH',
+                });
+
+                const cashPositions = [
+                    new CashPosition({ symbol: 'USD/SEK', cumQty: 100, cumCost: 1000, currency: 'SEK' }),
+                ];
+                const sru = new SRUFile(fxRates, [t1]);
+                sru.setInitialCashPositions(cashPositions);
+
+                const statements = sru.getCashStatements();
+                const pos = sru.getCashPosition('USD/SEK');
+
+                expect(pos).to.not.be.undefined;
+                expect(pos!.cumulativeQty).to.equal(100);
+                expect(pos!.cumulativeCost).to.equal(1000);
+
+                // assert no statement
+                expect(statements).to.be.empty;
+            });
 
             it('should handle non USD trades', () => {
                 const t1 = new TradeType({
