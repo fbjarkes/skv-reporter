@@ -11,6 +11,7 @@
  *   SRU_MAIL      - Email address
  *   SRU_CODE      - Postal code
  *   SRU_CITY      - City
+ *   POSITIONS_FILE - Optional CSV file with initial cash positions (ASSET,YEAR,CUM_QTY,CUM_COST,...)
  *
  * Output files are written to the current working directory:
  *   info.sru
@@ -24,6 +25,7 @@ import * as dotenv from 'dotenv';
 
 import { FlexQueryParser } from '../src/flexquery/flexquery-parser';
 import { SRUFile, SRUInfo, generateBlanketterFileData, totalsFileData } from '../src/sru/sru-file';
+import { parseInitialCashPositionsFile } from '../src/sru/sru-utils';
 import { Statement } from '../src/types/statement';
 
 dotenv.config();
@@ -90,6 +92,16 @@ const main = async () => {
     const rates = flexParser.getConversionRates();
 
     const sruFile = new SRUFile(rates, trades, sruInfo);
+    const positionsFile = process.env.POSITIONS_FILE;
+    if (positionsFile) {
+        const resolvedPositionsPath = path.resolve(positionsFile);
+        const cashPositions = await parseInitialCashPositionsFile(resolvedPositionsPath, taxYear);
+        sruFile.setInitialCashPositions(cashPositions);
+        console.log(`Loaded ${cashPositions.length} initial cash position(s) from ${resolvedPositionsPath}`);
+    } else {
+        console.log('POSITIONS_FILE not set. No initial cash positions loaded.');
+    }
+
     const packages = sruFile.getSRUPackages();
 
     console.log(`\nGenerating ${packages.length} SRU package(s)...`);

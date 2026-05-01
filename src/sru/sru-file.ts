@@ -188,8 +188,12 @@ export class SRUFile {
     }
 
     setInitialCashPositions(cashPositions: CashPosition[]): void {
+        //TODO: use account as part of key (also need account later in parsing...)
         cashPositions.forEach((pos) => {
             this.cashPositions.set(pos.symbol, pos);
+            logger.info(
+                `${pos.symbol}: Setting Cash Position qty=${pos.cumulativeQty}, cost=${pos.cumulativeCost}, currency=${pos.currency}`,
+            );
         });
     }
 
@@ -253,6 +257,9 @@ export class SRUFile {
                 );
             }
             const pos = this.cashPositions.get(symbol)!;
+            logger.info(
+                `${pos.symbol}: Setting Cash Position qty=${pos.cumulativeQty}, cost=${pos.cumulativeCost}, currency=${pos.currency}`,
+            );
 
             //TODO: use field 'buySell' instead of checking?
             if (trade.quantity > 0) {
@@ -393,6 +400,7 @@ export class SRUFile {
     getSRUPackages(): SRUPackage[] {
         validateSRUInfo(this.sruInfo);
         const title = `K4-${this.sruInfo?.taxYear}P4`;
+        //TODO: better to have "generate" or "initialize" method? (this is where all core stuff is happening)
         const allStatements = [...this.getStatements(), ...this.getCashStatements()];
         logger.info(
             `Generating SRU packages for ${allStatements.length} statements with ${this.statementsPerFile} statements per file`,
