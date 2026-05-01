@@ -1147,6 +1147,9 @@ describe('SRU Files', () => {
                 taxYear: 2021,
                 id: '19900101-1234',
             });
+            sru.setInitialCashPositions([
+                new CashPosition({ symbol: 'USD/SEK', cumQty: 500, cumCost: 10000, currency: 'SEK' }),
+            ]);
 
             const packages = sru.getSRUPackages(K4_TYPE.TYPE_C);
             expect(packages).to.have.lengthOf(1);
