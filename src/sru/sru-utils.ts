@@ -56,12 +56,57 @@ export const parseInitialCashPositionsCsv = (content: string, taxYear: number): 
         }
     }
 
+    const assetIndex = headers.indexOf('ASSET');
+    const accountIndex = headers.indexOf('ACCOUNT');
+    const yearIndex = headers.indexOf('YEAR');
+    const cumQtyIndex = headers.indexOf('CUM_QTY');
+    const cumCostIndex = headers.indexOf('CUM_COST');
     const positions: CashPosition[] = [];
+
+    for (let i = 1; i < lines.length; i++) {
+        const values = parseCsvLine(lines[i]).map((v) => unquote(v));
+
+        if (values.length <= Math.max(assetIndex, accountIndex, yearIndex, cumQtyIndex, cumCostIndex)) {
+            logger.warn(`Skipping malformed positions row ${i + 1} for tax year ${taxYear}: ${lines[i]}`);
+            continue;
+        }
+
+        const rowYear = Number(values[yearIndex]);
+        if (!Number.isFinite(rowYear) || rowYear !== taxYear) {
+            continue;
+        }
+
+        const rawAsset = values[assetIndex].trim();
+        if (!rawAsset) {
+            logger.warn(`Skipping positions row ${i + 1} with empty asset for tax year ${taxYear}`);
+            continue;
+        }
+
+        const symbol = rawAsset.includes('_') ? rawAsset.replace('_', '/') : rawAsset;
+        const symbolParts = symbol.split('/');
+        const currency = symbolParts.length > 1 ? symbolParts[symbolParts.length - 1].toUpperCase() : '';
+        const cumQty = Number(values[cumQtyIndex]);
+        const cumCost = Number(values[cumCostIndex]);
+
+        if (!Number.isFinite(cumQty) || !Number.isFinite(cumCost)) {
+            logger.warn(`Skipping positions row ${i + 1} with invalid numeric values for tax year ${taxYear}`);
+            continue;
+        }
+
+        positions.push(
+            new CashPosition({
+                symbol,
+                cumQty,
+                cumCost,
+                currency,
+            }),
+        );
+    }
 
     return positions;
 };
 
 export const parseInitialCashPositionsFile = async (filePath: string, taxYear: number): Promise<CashPosition[]> => {
     const content = await fs.readFile(filePath, 'utf8');
-    return parseInitialCashPositionsCsv(content, taxYear, filePath);
+    return parseInitialCashPositionsCsv(content, taxYear);
 };

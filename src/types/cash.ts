@@ -10,7 +10,6 @@ export class CashType {
     transactionType = '';
     proceeds = 0;
 
-
     constructor(init?: Partial<CashType>) {
         if (init) {
             Object.assign(this, init);
@@ -41,6 +40,8 @@ export class CashPosition {
     get averageCost(): number {
         if (this.cumulativeQty === 0) return 0;
         const v = this.cumulativeCost / this.cumulativeQty;
-        return Math.round(v * 1e5) / 1e5;
+        const precision = Math.abs(v) < 1e-5 ? 10 : 5;
+        const factor = 10 ** precision;
+        return Math.round(v * factor) / factor;
     }
 }
