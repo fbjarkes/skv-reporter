@@ -28,7 +28,7 @@ export class CashPosition {
     symbol: string;
     cumulativeQty: number;
     cumulativeCost: number;
-    currency: string;
+    currency: string; // Currency of the cumulative cost, e.g USD for EUR/USD, SEK for USD/SEK
 
     constructor(options: CashPositionOptions) {
         this.symbol = options.symbol;

@@ -17,7 +17,7 @@ describe('SRU Files', () => {
             '2020-01-10': new Map(Object.entries({ 'USD/SEK': 9.1 })),
             '2017-09-22': new Map(Object.entries({ 'USD/SEK': 7.98 })),
             '2025-01-15': new Map(Object.entries({ 'USD/SEK': 10.0 })),
-            '2025-01-16': new Map(Object.entries({ 'USD/SEK': 10.0 })),
+            '2025-01-16': new Map(Object.entries({ 'USD/SEK': 10.0, 'USD/JPY': 150.0 })),
             '2025-01-17': new Map(Object.entries({ 'USD/SEK': 10.0 })),
             '2025-01-18': new Map(Object.entries({ 'USD/SEK': 10.0 })),
             '2025-01-19': new Map(Object.entries({ 'USD/SEK': 10.0 })),
@@ -552,9 +552,74 @@ describe('SRU Files', () => {
                 expect(stmt2.pnl).to.equal(-2_540);
             });
 
+            it('should handle sell trade with no initial position', () => {});
+
             it('should handle non USD trades', () => {
-                // e.g. EUR/SEK, EUR/JPY etc.
+                const t1 = new TradeType({
+                    symbol: 'USD/SEK',
+                    direction: 'BUY',
+                    quantity: 500,
+                    entryPrice: 10.0,
+                    proceeds: -5000,
+                    commission: -2,
+                    commissionCurrency: 'USD',
+                    tradeCurrency: 'SEK',
+                    entryDateTime: '2025-01-15 13:00:00',
+                    securityType: 'CASH',
+                });
+                const t2 = new TradeType({
+                    symbol: 'USD/SEK',
+                    direction: 'SELL',
+                    quantity: -500,
+                    exitPrice: 20,
+                    proceeds: 10000,
+                    commission: -2,
+                    commissionCurrency: 'USD',
+                    tradeCurrency: 'SEK',
+                    exitDateTime: '2025-01-16 13:00:00',
+                    securityType: 'CASH',
+                });
+                const t3 = new TradeType({
+                    symbol: 'EUR/JPY',
+                    direction: 'BUY',
+                    quantity: 100,
+                    entryPrice: 150.0,
+                    proceeds: -15000,
+                    commission: -2,
+                    commissionCurrency: 'USD',
+                    tradeCurrency: 'JPY',
+                    entryDateTime: '2025-01-16 13:00:00',
+                    securityType: 'CASH',
+                });
+                const cashPositions = [new CashPosition({ symbol: 'USD/SEK', cumQty: 0, cumCost: 0, currency: 'SEK' })];
+
+                const sru = new SRUFile(fxRates, [t1, t2, t3]);
+                sru.setInitialCashPositions(cashPositions);
+
+                const statements = sru.getCashStatements();
+                const pos_usd = sru.getCashPosition('USD/SEK');
+                const pos_eur = sru.getCashPosition('EUR/JPY');
+
+                // Assert pos is reset to 0 after sell
+                expect(pos_usd).to.not.be.undefined;
+                expect(pos_usd!.cumulativeQty).to.equal(0);
+                expect(pos_usd!.cumulativeCost).to.equal(0);
+                expect(pos_usd!.averageCost).to.equal(0);
+
+                //assert 1 statement
+                expect(statements).to.have.lengthOf(1);
+                const stmt = statements[0];
+                expect(stmt.symbol).to.equal('USD/SEK');
+                expect(stmt.pnl).to.equal(5000 - 40);
+
+                expect(pos_eur).to.not.be.undefined;
+                expect(pos_eur?.currency).to.equal('JPY');
+                expect(pos_eur!.cumulativeQty).to.equal(100);
+                expect(pos_eur!.cumulativeCost).to.equal(15300); // Cost + commission (2USD) converted to JPY
+                expect(pos_eur!.averageCost).to.equal(153);
             });
+
+            it('should handle same trade currency with different pairs - EUR/JPY, EUR/USD, EUR/SEK', () => {});
         });
     });
 

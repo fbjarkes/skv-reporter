@@ -202,21 +202,31 @@ export class SRUFile {
     }
 
     getCashStatements(): Statement[] {
-        const _convertCommission = (trade: TradeType): number => {
-            if (trade.tradeCurrency == 'SEK' && trade.commissionCurrency == 'USD') {
-                const date = trade.direction == 'BUY' ? trade.entryDateTime : trade.exitDateTime;
-                const rate = this.fxRates.get(date.substring(0, 10))?.get('USD/SEK');
-                if (!rate) {
-                    throw new Error(`Missing USD/SEK rate for ${date.substring(0, 10)}`);
-                }
-                return Math.abs(trade.commission * rate);
+        const _convertCommissionForCost = (trade: TradeType): number => {
+            if (trade.tradeCurrency === trade.commissionCurrency) {
+                const price = trade.direction == 'BUY' ? trade.entryPrice : trade.exitPrice;
+                return trade.commission / price;
             }
-            if (trade.tradeCurrency != trade.commissionCurrency) {
+            let rateSymbol;
+            const date = trade.direction == 'BUY' ? trade.entryDateTime : trade.exitDateTime;
+
+            rateSymbol = `${trade.commissionCurrency}/${trade.tradeCurrency}`;
+            // use the numerator of the currency pair, e.g. for commission in USD and trade in EUR/JPY then need to convert commission to EUR.
+            // const curr = trade.symbol.split('/')[0];
+            // if (curr === trade.commissionCurrency) {
+            //     rateSymbol = `${curr}/${trade.tradeCurrency}`;
+            // } else {
+            //     rateSymbol = `${curr}/${trade.commissionCurrency}`;
+            // }
+            const rate = this.fxRates.get(date.substring(0, 10))?.get(rateSymbol);
+            if (!rate) {
                 throw new Error(
-                    `Unsupported commission currency '${trade.commissionCurrency}' for trade currency '${trade.tradeCurrency}'`,
+                    `Missing rate '${rateSymbol}' (commission=${trade.commission}${
+                        trade.commissionCurrency
+                    }) on ${date.substring(0, 10)} (trade=${trade})`,
                 );
             }
-            return Math.abs(trade.commission);
+            return Math.abs(trade.commission * rate);
         };
         const _convertCurrency = (amount: number, currency: string, dateTime: string): number => {
             if (currency == 'SEK') {
@@ -263,7 +273,7 @@ export class SRUFile {
 
             //TODO: use field 'buySell' instead of checking?
             if (trade.quantity > 0) {
-                const totalCost = Math.abs(trade.proceeds) + _convertCommission(trade);
+                const totalCost = Math.abs(trade.proceeds) + _convertCommissionForCost(trade);
                 pos.cumulativeCost += totalCost;
                 pos.cumulativeQty += trade.quantity;
                 // No statement needed
