@@ -2,7 +2,7 @@
  * CLI script to generate SRU files from an IBKR Flex Query XML export.
  *
  * Usage:
- *   npx ts-node scripts/generate-sru.ts <xml-file> <tax-year>
+ *   npx ts-node scripts/generate-sru.ts <xml-file> <tax-year> [--type TYPE_A|TYPE_C|TYPE_D]
  *
  * Personal info is read from environment variables (or a .env file):
  *   SRU_ID        - Personal/organisation number (personnummer)
@@ -26,16 +26,20 @@ import * as dotenv from 'dotenv';
 import { FlexQueryParser } from '../src/flexquery/flexquery-parser';
 import { SRUFile, SRUInfo, generateBlanketterFileData, totalsFileData } from '../src/sru/sru-file';
 import { parseInitialCashPositionsFile } from '../src/sru/sru-utils';
-import { Statement } from '../src/types/statement';
+import { K4_TYPE, Statement } from '../src/types/statement';
 
 dotenv.config();
 
 // --- arg parsing ---
 
-const [, , xmlFile, taxYearArg] = process.argv;
+const usage = 'Usage: npx ts-node scripts/generate-sru.ts <xml-file> <tax-year> [TYPE_A|TYPE_C|TYPE_D]';
+
+const positionalArgs = process.argv.slice(2).filter((a) => !a.startsWith('-'));
+
+const [xmlFile, taxYearArg, typeArg] = positionalArgs;
 
 if (!xmlFile || !taxYearArg) {
-    console.error('Usage: npx ts-node scripts/generate-sru.ts <xml-file> <tax-year>');
+    console.error(usage);
     process.exit(1);
 }
 
@@ -44,6 +48,13 @@ if (isNaN(taxYear)) {
     console.error(`Invalid tax year: ${taxYearArg}`);
     process.exit(1);
 }
+
+const typeMap: Record<string, K4_TYPE> = {
+    TYPE_A: K4_TYPE.TYPE_A,
+    TYPE_C: K4_TYPE.TYPE_C,
+    TYPE_D: K4_TYPE.TYPE_D,
+};
+const selectedType: K4_TYPE | undefined = typeArg ? typeMap[typeArg] : undefined;
 
 const sruInfo: SRUInfo = {
     taxYear,
@@ -102,7 +113,7 @@ const main = async () => {
         console.log('POSITIONS_FILE not set. No initial cash positions loaded.');
     }
 
-    const packages = sruFile.getSRUPackages();
+    const packages = sruFile.getSRUPackages(selectedType);
 
     console.log(`\nGenerating ${packages.length} SRU package(s)...`);
 

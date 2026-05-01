@@ -551,6 +551,10 @@ describe('SRU Files', () => {
                 expect(stmt2.paid).to.equal(12_540);
                 expect(stmt2.pnl).to.equal(-2_540);
             });
+
+            it('should handle non USD trades', () => {
+                // e.g. EUR/SEK, EUR/JPY etc.
+            });
         });
     });
 
@@ -992,6 +996,43 @@ describe('SRU Files', () => {
                 '#FIL_SLUT',
             ];
             expect(generateBlanketterFileData(packages[0].forms)).to.have.members(expectedLines);
+        });
+
+        it('should filter SRU packages by type', () => {
+            console.log('====');
+            const t1 = _createTrade('SPY', 900, 1001, 10, 100, 100, 'STK', '2021-01-11');
+            const t2 = _createFutTrade('MNQM1', 900, 1001, 1, 100);
+            const t3 = _createFutTrade('MCLM1', 900, 1001, 1, 100);
+            const t4 = _createCashTrade({
+                symbol: 'USD/SEK',
+                direction: 'SELL',
+                quantity: -500,
+                exitPrice: 15.0,
+                proceeds: 7500,
+                commission: -2,
+                commissionCurrency: 'USD',
+                tradeCurrency: 'SEK',
+                exitDateTime: '2021-01-11 12:00:00',
+            });
+            const sru = new SRUFile(fxRates, [t1, t2, t3, t4], {
+                name: 'TEST',
+                surname: 'TEST',
+                mail: 'TEST',
+                code: '123 45',
+                city: 'TEST',
+                taxYear: 2021,
+                id: '19900101-1234',
+            });
+
+            const packages = sru.getSRUPackages(K4_TYPE.TYPE_C);
+            expect(packages).to.have.lengthOf(1);
+            expect(packages[0].forms).to.have.length(1);
+            expect(packages[0].forms[0].type).to.equal(K4_TYPE.TYPE_C);
+            expect(packages[0].statements).to.have.length(1);
+            expect(packages[0].statements[0].type).to.equal(K4_TYPE.TYPE_C);
+            expect(packages[0].totals).to.have.lengthOf(1);
+            expect(packages[0].totals[0].type).to.equal(K4_TYPE.TYPE_C);
+            expect(packages[0].totals[0].totalStatements).to.equal(1);
         });
 
         it('should throw error when erroneous data', () => {

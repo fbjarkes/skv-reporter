@@ -192,7 +192,7 @@ export class SRUFile {
         cashPositions.forEach((pos) => {
             this.cashPositions.set(pos.symbol, pos);
             logger.info(
-                `${pos.symbol}: Setting Cash Position qty=${pos.cumulativeQty}, cost=${pos.cumulativeCost}, currency=${pos.currency}`,
+                `${pos.symbol}: Initializing Cash Position qty=${pos.cumulativeQty}, cost=${pos.cumulativeCost}, currency=${pos.currency}`,
             );
         });
     }
@@ -258,7 +258,7 @@ export class SRUFile {
             }
             const pos = this.cashPositions.get(symbol)!;
             logger.info(
-                `${pos.symbol}: Setting Cash Position qty=${pos.cumulativeQty}, cost=${pos.cumulativeCost}, currency=${pos.currency}`,
+                `${pos.symbol}: Using cash Position qty=${pos.cumulativeQty}, cost=${pos.cumulativeCost}, currency=${pos.currency} (trade=${trade})`,
             );
 
             //TODO: use field 'buySell' instead of checking?
@@ -311,6 +311,14 @@ export class SRUFile {
                 }
             }
         });
+        // console log current cash positions
+        logger.info(`Processed ${cashTrades.length} cash trades.`);
+        this.cashPositions.forEach((pos) => {
+            logger.info(
+                `${pos.symbol}: Final cash position qty=${pos.cumulativeQty}, cost=${pos.cumulativeCost}, currency=${pos.currency}`,
+            );
+        });
+
         return statements;
     }
 
@@ -397,18 +405,35 @@ export class SRUFile {
         ];
     }
 
-    getSRUPackages(): SRUPackage[] {
+    getSRUPackages(typeFilter?: K4_TYPE): SRUPackage[] {
         validateSRUInfo(this.sruInfo);
         const title = `K4-${this.sruInfo?.taxYear}P4`;
         //TODO: better to have "generate" or "initialize" method? (this is where all core stuff is happening)
-        const allStatements = [...this.getStatements(), ...this.getCashStatements()];
+        let allStatements;
+        if (typeFilter == K4_TYPE.TYPE_C) {
+            logger.info(`Generating SRU packages for TYPE_C statements`);
+            allStatements = this.getCashStatements();
+        } else if (typeFilter == K4_TYPE.TYPE_A) {
+            logger.info(`Generating SRU packages for TYPE_A statements`);
+            allStatements = this.getStatements();
+        } else {
+            logger.info(`Generating SRU packages for all statement types`);
+            allStatements = [...this.getStatements(), ...this.getCashStatements()];
+        }
+
+        //const allStatements = [...this.getStatements(), ...this.getCashStatements()];
+        const filteredStatements = typeFilter
+            ? allStatements.filter((statement: Statement) => statement.type === typeFilter)
+            : allStatements;
         logger.info(
-            `Generating SRU packages for ${allStatements.length} statements with ${this.statementsPerFile} statements per file`,
+            `Generating SRU packages for ${filteredStatements.length} statements with ${
+                this.statementsPerFile
+            } statements per file${typeFilter ? ` (type filter: ${typeFilter})` : ''}`,
         );
 
         // TODO: in order to reduce number of K4Forms, start with a new K4Form and just pick from statements until empty,
         // e.g. for each new K4Form pick next available 9 TYPE_A and 7 TYPE_C etc.
-        const packages = chunk(allStatements, this.statementsPerFile).map((statements: Statement[]) => {
+        const packages = chunk(filteredStatements, this.statementsPerFile).map((statements: Statement[]) => {
             const forms: K4Form[] = [];
             let page = 1;
             const statements_a = statements.filter((s: Statement) => s.type === K4_TYPE.TYPE_A);
@@ -500,11 +525,12 @@ export class SRUFile {
                 totalPnl: sumBy(statements_d, 'pnl'),
                 totalStatements: statements_d.length,
             };
+            const totals = [typeA_totals, typeC_totals, typeD_totals];
             const p: SRUPackage = {
                 info: this.sruInfo,
                 statements: statements,
                 forms: forms,
-                totals: [typeA_totals, typeC_totals, typeD_totals],
+                totals: typeFilter ? totals.filter((total) => total.type === typeFilter) : totals,
             };
             return p;
         });
