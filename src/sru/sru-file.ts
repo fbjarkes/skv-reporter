@@ -121,12 +121,21 @@ export const totalsFileData = (totals: K4TypeTotals[]): string[] => {
                 `Add and sum (positive) total loss '${Math.abs(t.totalLoss)}' to 8.4`,
             ];
         }
-        // TODO: TYPE_C
+        if (t.type === K4_TYPE.TYPE_C) {
+            return [
+                `Add and sum total profit '${t.totalProfit}' to 7.2`,
+                `Add and sum (positive) total loss '${Math.abs(t.totalLoss)}' to 8.1`,
+            ];
+        }
         return [];
     };
     const data = totals.map((t) => {
         return [..._add_totals(t), ..._add_instructions(t), ''];
     });
+    // pretty print data:
+    logger.info('Totals and instructions:');
+    logger.info(data.map((group) => group.map((line) => `\t${line}`).join('\n')).join('\n'));
+
     return data.flat();
 };
 
@@ -449,7 +458,7 @@ export class SRUFile {
             logger.info(`${this.account}: Generating SRU packages for all statement types`);
             allStatements = [...this.getStatements(), ...this.getCashStatements()];
         }
-
+        logger.info(`${this.account}: Total statements to process: ${allStatements.length}`);
         //const allStatements = [...this.getStatements(), ...this.getCashStatements()];
         const filteredStatements = typeFilter
             ? allStatements.filter((statement: Statement) => statement.type === typeFilter)
@@ -563,6 +572,15 @@ export class SRUFile {
             };
             return p;
         });
+        logger.info(`${this.account}: Total packages created: ${packages.length}`);
+        for (let i = 0; i < packages.length; i++) {
+            const pkg = packages[i];
+            logger.info(
+                `${this.account}: Package ${i + 1} has ${pkg.statements.length} statements, with totals: ${pkg.totals
+                    .map((t) => `${t.type} PnL: ${t.totalPnl}, Statements: ${t.totalStatements}`)
+                    .join(' | ')}`,
+            );
+        }
         return packages;
     }
 }
