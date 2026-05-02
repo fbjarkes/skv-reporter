@@ -1,7 +1,7 @@
 ---
 description: 'Use when creating a GitHub pull request, opening a PR from the current branch, publishing changes for review, or preparing a draft PR. Defaults base branch to develop unless another target branch is explicitly requested.'
 name: 'PullRequest'
-tools: [execute, github/create_pull_request, github/list_commits]
+tools: [execute, read, search, github/*]
 user-invocable: true
 ---
 

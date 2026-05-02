@@ -142,3 +142,4 @@ main.ts
 SKV*.xml
 *.sru
 debug.log
+.env

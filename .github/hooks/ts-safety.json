@@ -2,7 +2,7 @@
     "event": "PreToolUse",
     "tool": "execute",
     "match": {
-        "command": "^((npm|pnpm|yarn) (test|run (test|typecheck|lint|build|mocha))|npx (tsc|mocha)(\\s|$)|tsc(\\s|$)|mocha(\\s|$)|(\\./)?node_modules/\\.bin/mocha(\\s|$))"
+        "command": "^((npm|pnpm|yarn) (test|run (test|typecheck|lint|build|mocha))|npx (tsc|mocha)|tsc(\\s|$)|mocha(\\s|$)|(\\./)?node_modules/\\.bin/mocha)"
     },
     "action": "allow"
 }
