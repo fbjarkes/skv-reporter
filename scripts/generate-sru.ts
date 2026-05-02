@@ -26,6 +26,7 @@ import * as dotenv from 'dotenv';
 import { parseArgs } from 'node:util';
 
 import { FlexQueryParser } from '../src/flexquery/flexquery-parser';
+import { NNParser } from '../src/flexquery/nn-parser';
 import { SRUFile, SRUInfo, generateBlanketterFileData, totalsFileData } from '../src/sru/sru-file';
 import { parseInitialCashPositionsFile } from '../src/sru/sru-utils';
 import { K4_TYPE, Statement } from '../src/types/statement';
@@ -141,6 +142,33 @@ const parseIbkrInput = (
     return { trades, rates };
 };
 
+const parseNNInput = (
+    fileData: string,
+    account?: string,
+): { trades: TradeType[]; rates: Map<string, Map<string, number>> } => {
+    const nnParser = new NNParser(account);
+    const stats = nnParser.parse(fileData);
+
+    console.log('\n--- Parse summary ---');
+    console.log(`Trades:       ${stats.tradesCount} (winners: ${stats.winnersCount}, losers: ${stats.losersCount})`);
+    console.log(
+        `  STK: ${stats.stkTradesCount}  OPT: ${stats.optTradesCount}  FUT: ${stats.futTradesCount}  Non-USD: ${stats.tradesNonUSDCount}`,
+    );
+    console.log(`Trade PnL:    ${stats.tradePnl.toFixed(2)} USD  (non-USD: ${stats.tradePnlNonUsd.toFixed(2)})`);
+    console.log(`Commissions:  ${stats.totalComm.toFixed(2)} USD`);
+    console.log(`FX mappings:  ${stats.ratesCount}`);
+    if (stats.tradesUnhandledCount > 0) {
+        console.warn(`Unhandled:    ${stats.tradesUnhandledCount} trades skipped`);
+    }
+
+    const trades = [
+        ...nnParser.getClosingTrades(),
+        ...nnParser.getAllTrades().filter((t) => t.securityType === 'CASH'),
+    ];
+    const rates = nnParser.getConversionRates();
+    return { trades, rates };
+};
+
 const parseBrokerInput = (
     broker: Broker,
     fileData: string,
@@ -150,7 +178,7 @@ const parseBrokerInput = (
         case 'ibkr':
             return parseIbkrInput(fileData, account);
         case 'nordnet':
-            throw new Error('Broker nordnet is not implemented yet');
+            return parseNNInput(fileData, account);
         case 'kraken':
             throw new Error('Broker kraken is not implemented yet');
     }

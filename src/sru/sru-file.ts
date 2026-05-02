@@ -387,9 +387,12 @@ export class SRUFile {
                 }
 
                 if (trade.direction === 'SHORT') {
+                    // TODO: same as below...
                     paid = (trade.proceeds + trade.commission) * rate;
                     received = trade.cost * rate;
                 } else {
+                    //TODO: verify that commission hasn't been added to cost already (IBKR does not), depends on broker transactions exports,
+                    // perhaps make it optional to add it here or not at least?
                     paid = (trade.cost + trade.commission) * rate;
                     received = trade.proceeds * rate;
                 }

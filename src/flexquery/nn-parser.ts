@@ -186,6 +186,7 @@ export class NNParser {
     private mapToTrade(row: NNRow): TradeType {
         const side = row.transactionType as NNSide;
         const isBuy = side === 'KÖPT';
+        const isSell = side === 'SÅLT';
         const trade = new TradeType();
 
         trade.symbol = row.isin || row.symbol;
@@ -198,6 +199,9 @@ export class NNParser {
         trade.quantity = isBuy ? row.quantity : -row.quantity;
         trade.proceeds = row.amount;
         trade.cost = row.costBasis;
+        if (isSell && trade.cost === 0) {
+            trade.cost = row.amount - row.result; // Note: calculate cost, since we know actual pnl just subtract it from the proceeds (i.e. positive pnl then the cost is lower than the amount received and vice versa)
+        }
         trade.pnl = row.result;
         trade.commission = -Math.abs(row.commission);
         trade.commissionCurrency = row.currency;
@@ -209,7 +213,6 @@ export class NNParser {
             trade.exitPrice = row.price;
             trade.exitDateTime = `${row.tradeDate}${DATE_TIME_SUFFIX}`;
         }
-        console.log(trade);
         return trade;
     }
 }

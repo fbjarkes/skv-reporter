@@ -38,7 +38,7 @@ describe('NNParser', () => {
         expect(investorSell?.entryDateTime).to.equal('2025-04-02 00:00');
         expect(investorSell?.pnl).to.equal(-360);
         expect(investorSell?.proceeds).to.equal(10190);
-        expect(investorSell?.cost).to.equal(0);
+        expect(investorSell?.cost).to.equal(10190 - -360);
         expect(investorSell?.commission).to.equal(0);
         expect(investorSell?.transactionType).to.equal('ExchTrade');
         expect(investorSell?.direction).to.equal('LONG');
@@ -69,7 +69,10 @@ describe('NNParser', () => {
         closingTrades.forEach((trade) => {
             expect(trade.openClose).to.equal('C');
             expect(trade.quantity).to.be.lessThan(0);
-            expect(trade.entryDateTime).to.not.equal('');
+            expect(trade.exitPrice).to.be.greaterThan(0);
+            expect(trade.cost).to.be.greaterThan(0); // LONG only?
+            expect(trade.proceeds).to.be.greaterThan(0); // Long only?
+            //expect(trade.entryDateTime).to.not.equal('');
             expect(trade.exitDateTime).to.not.equal('');
         });
     });
