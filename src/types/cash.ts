@@ -10,7 +10,6 @@ export class CashType {
     transactionType = '';
     proceeds = 0;
 
-
     constructor(init?: Partial<CashType>) {
         if (init) {
             Object.assign(this, init);
@@ -20,6 +19,7 @@ export class CashType {
 
 export interface CashPositionOptions {
     symbol: string;
+    account: string;
     cumQty: number;
     cumCost: number;
     currency: string;
@@ -27,12 +27,14 @@ export interface CashPositionOptions {
 
 export class CashPosition {
     symbol: string;
+    account: string;
     cumulativeQty: number;
     cumulativeCost: number;
-    currency: string;
+    currency: string; // Currency of the cumulative cost, e.g USD for EUR/USD, SEK for USD/SEK
 
     constructor(options: CashPositionOptions) {
         this.symbol = options.symbol;
+        this.account = options.account;
         this.cumulativeQty = options.cumQty;
         this.cumulativeCost = options.cumCost;
         this.currency = options.currency;
@@ -41,6 +43,12 @@ export class CashPosition {
     get averageCost(): number {
         if (this.cumulativeQty === 0) return 0;
         const v = this.cumulativeCost / this.cumulativeQty;
-        return Math.round(v * 1e5) / 1e5;
+        const precision = Math.abs(v) < 1e-5 ? 10 : 5;
+        const factor = 10 ** precision;
+        return Math.round(v * factor) / factor;
+    }
+
+    toString(): string {
+        return `CashPosition(symbol=${this.symbol}, account=${this.account}, cumulativeQty=${this.cumulativeQty}, cumulativeCost=${this.cumulativeCost}, currency=${this.currency})`;
     }
 }

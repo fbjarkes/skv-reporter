@@ -81,6 +81,8 @@ export const generateBlanketterFileData = (forms: K4Form[]): string[] => {
         // TODO: use generic generateLines() since it knows its type and assume forms are ordered correctly already
         if (f.type === K4_TYPE.TYPE_A) {
             data = data.concat(f.generateLinesTypeA());
+        } else if (f.type === K4_TYPE.TYPE_C) {
+            data = data.concat(f.generateLinesTypeC());
         } else if (f.type === K4_TYPE.TYPE_D) {
             data = data.concat(f.generateLinesTypeD());
         } else {
@@ -119,12 +121,21 @@ export const totalsFileData = (totals: K4TypeTotals[]): string[] => {
                 `Add and sum (positive) total loss '${Math.abs(t.totalLoss)}' to 8.4`,
             ];
         }
-        // TODO: TYPE_C
+        if (t.type === K4_TYPE.TYPE_C) {
+            return [
+                `Add and sum total profit '${t.totalProfit}' to 7.2`,
+                `Add and sum (positive) total loss '${Math.abs(t.totalLoss)}' to 8.1`,
+            ];
+        }
         return [];
     };
     const data = totals.map((t) => {
         return [..._add_totals(t), ..._add_instructions(t), ''];
     });
+    // pretty print data:
+    logger.info('Totals and instructions:');
+    logger.info(data.map((group) => group.map((line) => `\t${line}`).join('\n')).join('\n'));
+
     return data.flat();
 };
 
@@ -153,6 +164,7 @@ export const isCommodityFuture = (symbol: string) => {
 };
 export class SRUFile {
     sruInfo?: SRUInfo;
+    account?: string;
     title = 'SKV-Reporter';
     statementsPerFile: number;
     maxTypeAStatements: number;
@@ -169,6 +181,7 @@ export class SRUFile {
         fxRates: Map<string, Map<string, number>>,
         trades: TradeType[],
         data?: SRUInfo,
+        account?: string,
         date = new Date(),
         statementsPerFile = 3500, // approx. ~5MB
         maxTypeAStatements = MAX_TYPE_A_STATEMENTS,
@@ -176,6 +189,7 @@ export class SRUFile {
         maxTypeDStatements = MAX_TYPE_D_STATEMENTS,
     ) {
         this.sruInfo = data;
+        this.account = account;
         this.fxRates = fxRates;
         this.trades = trades;
         this.createDate = date;
@@ -184,10 +198,12 @@ export class SRUFile {
         this.maxTypeCStatements = maxTypeCStatements;
         this.maxTypeDStatements = maxTypeDStatements;
     }
-    
+
     setInitialCashPositions(cashPositions: CashPosition[]): void {
+        //TODO: use account as part of key (also need account later in parsing...)
         cashPositions.forEach((pos) => {
             this.cashPositions.set(pos.symbol, pos);
+            logger.info(`${pos.symbol} (${this.account}): Initializing Cash Position ${pos}`);
         });
     }
 
@@ -196,19 +212,31 @@ export class SRUFile {
     }
 
     getCashStatements(): Statement[] {
-        const _convertCommission = (trade: TradeType): number => {
-            if (trade.tradeCurrency == 'SEK' && trade.commissionCurrency == 'USD') {
-                const date = trade.direction == 'BUY' ? trade.entryDateTime : trade.exitDateTime;
-                const rate = this.fxRates.get(date.substring(0, 10))?.get('USD/SEK');
-                if (!rate) {
-                    throw new Error(`Missing USD/SEK rate for ${date.substring(0, 10)}`);
-                }
-                return Math.abs(trade.commission * rate);
+        const _convertCommissionForCost = (trade: TradeType): number => {
+            if (trade.tradeCurrency === trade.commissionCurrency) {
+                const price = trade.direction == 'BUY' ? trade.entryPrice : trade.exitPrice;
+                return trade.commission / price;
             }
-            if (trade.tradeCurrency != trade.commissionCurrency) {
-                throw new Error(`Unsupported commission currency '${trade.commissionCurrency}' for trade currency '${trade.tradeCurrency}'`);
+            let rateSymbol;
+            const date = trade.direction == 'BUY' ? trade.entryDateTime : trade.exitDateTime;
+
+            rateSymbol = `${trade.commissionCurrency}/${trade.tradeCurrency}`;
+            // use the numerator of the currency pair, e.g. for commission in USD and trade in EUR/JPY then need to convert commission to EUR.
+            // const curr = trade.symbol.split('/')[0];
+            // if (curr === trade.commissionCurrency) {
+            //     rateSymbol = `${curr}/${trade.tradeCurrency}`;
+            // } else {
+            //     rateSymbol = `${curr}/${trade.commissionCurrency}`;
+            // }
+            const rate = this.fxRates.get(date.substring(0, 10))?.get(rateSymbol);
+            if (!rate) {
+                throw new Error(
+                    `Missing rate '${rateSymbol}' (commission=${trade.commission}${
+                        trade.commissionCurrency
+                    }) on ${date.substring(0, 10)} (trade=${trade})`,
+                );
             }
-            return Math.abs(trade.commission);
+            return Math.abs(trade.commission * rate);
         };
         const _convertCurrency = (amount: number, currency: string, dateTime: string): number => {
             if (currency == 'SEK') {
@@ -222,14 +250,12 @@ export class SRUFile {
                 return amount * rate;
             }
             throw new Error(`Unsupported currency '${currency}'`);
-        }
+        };
 
         const statements: Statement[] = [];
         let id = 0;
 
-        const cashTrades = this.trades.filter(
-            (trade) => trade.securityType === 'CASH',
-        );
+        const cashTrades = this.trades.filter((trade) => trade.securityType === 'CASH');
         cashTrades.forEach((trade: TradeType) => {
             // TODO: direction field uses 'LONG'/'SHORT' (not 'BUY'/'SELL'); replace with `trade.quantity > 0` for entry
             // vs exit datetime selection, or map _buySell explicitly in the parser to avoid wrong datetime / FX lookup.
@@ -239,37 +265,64 @@ export class SRUFile {
                     `Tax year mismatch: SRU tax year ${this.sruInfo?.taxYear} does not match cash trade year ${dateTime} for trade ${trade}`,
                 );
             }
-            
+
             const symbol = trade.symbol;
             if (!this.cashPositions.has(symbol)) {
-                this.cashPositions.set(symbol, new CashPosition({ symbol, cumQty: 0, cumCost: 0, currency: trade.tradeCurrency }));
-                logger.info(`${symbol}: Initializing cash position for symbol with 0 qty and 0 cost in currency ${trade.tradeCurrency}`);
+                this.cashPositions.set(
+                    symbol,
+                    new CashPosition({
+                        symbol,
+                        cumQty: 0,
+                        cumCost: 0,
+                        currency: trade.tradeCurrency,
+                        account: 'DEFAULT_ACCOUNT',
+                    }),
+                );
+                logger.info(
+                    `${symbol} (${this.account}): Initializing cash position for symbol with 0 qty and 0 cost in currency ${trade.tradeCurrency}`,
+                );
             }
             const pos = this.cashPositions.get(symbol)!;
+            //logger.debug(`${pos.symbol}: Using cash Position qty=${pos.cumulativeQty}, cost=${pos.cumulativeCost}, currency=${pos.currency}, for trade='${trade}'`);
 
             //TODO: use field 'buySell' instead of checking?
             if (trade.quantity > 0) {
-                const totalCost = Math.abs(trade.proceeds) + _convertCommission(trade); 
+                const totalCost = Math.abs(trade.proceeds) + _convertCommissionForCost(trade);
                 pos.cumulativeCost += totalCost;
                 pos.cumulativeQty += trade.quantity;
                 // No statement needed
-
             } else if (trade.quantity < 0) {
+                // if saleQty is larger than current position, then we skip this trade
+                if (Math.abs(trade.quantity) > pos.cumulativeQty) {
+                    //TODO: perhaps throw error?
+                    logger.warn(
+                        `${pos.symbol}: Skipping cash trade with quantity ${Math.abs(
+                            trade.quantity,
+                        )} since it exceeds current cash position quantity ${
+                            pos.cumulativeQty
+                        } for symbol (Trade=${trade})`,
+                    );
+                    return;
+                }
                 // Update position
                 const saleQty = Math.abs(trade.quantity);
-                const avgCost = pos.averageCost;                
+                const avgCost = pos.averageCost;
                 pos.cumulativeQty -= saleQty;
-                pos.cumulativeCost = pos.cumulativeQty * avgCost; //TODO: or pos.cumulativeCost -= saleQty *avgCost ?
-                                
+                //TODO: or pos.cumulativeCost -= saleQty * avgCost ?
+                //TODO: or pos.cumulativeCost -= saleQty * trade.exitPrice?
+                pos.cumulativeCost = pos.cumulativeQty * avgCost;
+
                 // Create statement (all in SEK)
                 const received = saleQty * trade.exitPrice;
                 const receivedSek = _convertCurrency(received, trade.tradeCurrency, dateTime);
                 const paid = saleQty * avgCost;
                 const commissionSek = _convertCurrency(Math.abs(trade.commission), trade.commissionCurrency, dateTime);
-                const paidSek = _convertCurrency(paid, pos.currency, dateTime) + commissionSek;             
+                const paidSek = _convertCurrency(paid, pos.currency, dateTime) + commissionSek;
                 const pnl = receivedSek - paidSek;
 
-                const symbol = trade.symbol + (trade.transactionType && trade.securityType !== 'CASH' ? ` ${trade.transactionType}` : '');
+                const symbol =
+                    trade.symbol +
+                    (trade.transactionType && trade.securityType !== 'CASH' ? ` ${trade.transactionType}` : '');
 
                 const statement = new Statement(
                     id++,
@@ -296,6 +349,14 @@ export class SRUFile {
                 }
             }
         });
+        // console log current cash positions
+        logger.info(`Processed ${cashTrades.length} cash trades.`);
+        this.cashPositions.forEach((pos) => {
+            logger.info(
+                `${pos.symbol} (${this.account}): Final cash position qty=${pos.cumulativeQty}, cost=${pos.cumulativeCost}, currency=${pos.currency}`,
+            );
+        });
+
         return statements;
     }
 
@@ -305,61 +366,61 @@ export class SRUFile {
         this.trades
             .filter((trade: TradeType) => trade.securityType !== 'CASH')
             .forEach((trade: TradeType) => {
-            let rate: number | undefined = 1;
-            let paid, received;
+                let rate: number | undefined = 1;
+                let paid, received;
 
-            if (this.sruInfo?.taxYear && this.sruInfo?.taxYear !== Number(trade.exitDateTime.substring(0, 4))) {
-                throw new Error(
-                    `Tax year mismatch: SRU tax year ${this.sruInfo?.taxYear} does not match trade exit year ${trade.exitDateTime} for trade ${trade}`,
-                );
-            }
-
-            if (!this.supportedCurrencies.includes(trade.tradeCurrency)) {
-                throw new Error(`Unsupported currency '${trade.tradeCurrency}'`);
-            }
-            if (trade.tradeCurrency !== 'SEK') {
-                const key = trade.exitDateTime.substring(0, 10);
-                rate = this.fxRates.get(key)?.get('USD/SEK');
-                if (!rate) {
-                    throw new Error(`Missing USD/SEK rate for ${key}`);
+                if (this.sruInfo?.taxYear && this.sruInfo?.taxYear !== Number(trade.exitDateTime.substring(0, 4))) {
+                    throw new Error(
+                        `Tax year mismatch: SRU tax year ${this.sruInfo?.taxYear} does not match trade exit year ${trade.exitDateTime} for trade ${trade}`,
+                    );
                 }
-            }
 
-            if (trade.direction === 'SHORT') {
-                paid = (trade.proceeds + trade.commission) * rate;
-                received = trade.cost * rate;
-            } else {
-                paid = (trade.cost + trade.commission) * rate;
-                received = trade.proceeds * rate;
-            }
-            const pnl = trade.pnl * rate;
-            const statement = new Statement(
-                id++,
-                trade.quantity,
-                `${trade.symbol} ${trade.description}`,
-                paid,
-                received,
-                pnl,
-                toK4Type(trade),
-                trade.exitDateTime,
-                toK4SecType(trade),
-            );
+                if (!this.supportedCurrencies.includes(trade.tradeCurrency)) {
+                    throw new Error(`Unsupported currency '${trade.tradeCurrency}'`);
+                }
+                if (trade.tradeCurrency !== 'SEK') {
+                    const key = trade.exitDateTime.substring(0, 10);
+                    rate = this.fxRates.get(key)?.get('USD/SEK');
+                    if (!rate) {
+                        throw new Error(`Missing USD/SEK rate for ${key}`);
+                    }
+                }
 
-            if (trade.openClose === 'C;O') {
-                logger.info(`Found C;O statement: ${statement}`);
-            }
-            if (Math.abs(trade.quantity) < 1) {
-                logger.warn(`Trade with quantity < 1: ${trade}. Force setting quantity to 1 in statement.`);
-                statement.quantity = 1;
-            }
-            if (Math.abs(pnl) < 1) {
-                logger.info(`Skipping trade with < 1SEK: ${statement.toString()}`);
-                //console.log(`Skipping trade with < 1SEK: ${statement.toString()}`);
-            } else {
-                logger.info(`Adding: ${statement.toString()}`);
-                //console.log(`Adding: ${statement.toString()}`);
-                statements.push(statement);
-            }
+                if (trade.direction === 'SHORT') {
+                    paid = (trade.proceeds + trade.commission) * rate;
+                    received = trade.cost * rate;
+                } else {
+                    paid = (trade.cost + trade.commission) * rate;
+                    received = trade.proceeds * rate;
+                }
+                const pnl = trade.pnl * rate;
+                const statement = new Statement(
+                    id++,
+                    trade.quantity,
+                    `${trade.symbol} ${trade.description}`,
+                    paid,
+                    received,
+                    pnl,
+                    toK4Type(trade),
+                    trade.exitDateTime,
+                    toK4SecType(trade),
+                );
+
+                if (trade.openClose === 'C;O') {
+                    logger.info(`Found C;O statement: ${statement}`);
+                }
+                if (Math.abs(trade.quantity) < 1) {
+                    logger.warn(`Trade with quantity < 1: ${trade}. Force setting quantity to 1 in statement.`);
+                    statement.quantity = 1;
+                }
+                if (Math.abs(pnl) < 1) {
+                    logger.info(`Skipping trade with < 1SEK: ${statement.toString()}`);
+                    //console.log(`Skipping trade with < 1SEK: ${statement.toString()}`);
+                } else {
+                    logger.info(`Adding: ${statement.toString()}`);
+                    //console.log(`Adding: ${statement.toString()}`);
+                    statements.push(statement);
+                }
             });
         return statements;
     }
@@ -382,25 +443,43 @@ export class SRUFile {
         ];
     }
 
-    getSRUPackages(): SRUPackage[] {
+    getSRUPackages(typeFilter?: K4_TYPE): SRUPackage[] {
         validateSRUInfo(this.sruInfo);
         const title = `K4-${this.sruInfo?.taxYear}P4`;
-        const allStatements = this.getStatements();
-        // TODO: merge getCashStatements() into allStatements, chunk them into TYPE_C K4Forms, and include TYPE_C totals
-        // so that cash activity is actually included in the generated SRU packages/forms. Also ensure
-        // generateBlanketterFileData and K4Form support TYPE_C output.
+        //TODO: better to have "generate" or "initialize" method? (this is where all core stuff is happening)
+        let allStatements;
+        if (typeFilter == K4_TYPE.TYPE_C) {
+            logger.info(`${this.account}: Generating SRU packages for TYPE_C statements`);
+            allStatements = this.getCashStatements();
+        } else if (typeFilter == K4_TYPE.TYPE_A) {
+            logger.info(`${this.account}: Generating SRU packages for TYPE_A statements`);
+            allStatements = this.getStatements();
+        } else {
+            logger.info(`${this.account}: Generating SRU packages for all statement types`);
+            allStatements = [...this.getStatements(), ...this.getCashStatements()];
+        }
+        logger.info(`${this.account}: Total statements to process: ${allStatements.length}`);
+        //const allStatements = [...this.getStatements(), ...this.getCashStatements()];
+        const filteredStatements = typeFilter
+            ? allStatements.filter((statement: Statement) => statement.type === typeFilter)
+            : allStatements;
         logger.info(
-            `Generating SRU packages for ${allStatements.length} statements with ${this.statementsPerFile} statements per file`,
+            `${this.account}: Generating SRU packages for ${filteredStatements.length} statements with ${
+                this.statementsPerFile
+            } statements per file${typeFilter ? ` (type filter: ${typeFilter})` : ''}`,
         );
 
         // TODO: in order to reduce number of K4Forms, start with a new K4Form and just pick from statements until empty,
         // e.g. for each new K4Form pick next available 9 TYPE_A and 7 TYPE_C etc.
-        const packages = chunk(allStatements, this.statementsPerFile).map((statements: Statement[]) => {
+        const packages = chunk(filteredStatements, this.statementsPerFile).map((statements: Statement[]) => {
             const forms: K4Form[] = [];
             let page = 1;
             const statements_a = statements.filter((s: Statement) => s.type === K4_TYPE.TYPE_A);
+            const statements_c = statements.filter((s: Statement) => s.type === K4_TYPE.TYPE_C);
             const statements_d = statements.filter((s: Statement) => s.type === K4_TYPE.TYPE_D);
-            logger.info(`Handling ${statements_a.length} TYPE_A, ${statements_d.length} TYPE_D in package`);
+            logger.info(
+                `${this.account}: Handling ${statements_a.length} TYPE_A, ${statements_c.length} TYPE_C, ${statements_d.length} TYPE_D in package`,
+            );
             // TYPE_A
             chunk(statements_a, this.maxTypeAStatements).forEach((statements_a_chunk: Statement[]) => {
                 const form = new K4Form(
@@ -410,6 +489,18 @@ export class SRUFile {
                     this.createDate,
                     statements_a_chunk,
                     K4_TYPE.TYPE_A,
+                );
+                forms.push(form);
+            });
+            // TYPE_C
+            chunk(statements_c, this.maxTypeCStatements).forEach((statements_c_chunk: Statement[]) => {
+                const form = new K4Form(
+                    title,
+                    page++,
+                    this.sruInfo?.id || '',
+                    this.createDate,
+                    statements_c_chunk,
+                    K4_TYPE.TYPE_C,
                 );
                 forms.push(form);
             });
@@ -425,7 +516,6 @@ export class SRUFile {
                 );
                 forms.push(form);
             });
-            // TYPE_C....
 
             // TODO: sum totals from K4Forms instead which is technically what happens in reality?
             const typeA_totals: K4TypeTotals = {
@@ -443,6 +533,21 @@ export class SRUFile {
                 totalPnl: sumBy(statements_a, 'pnl'),
                 totalStatements: statements_a.length,
             };
+            const typeC_totals: K4TypeTotals = {
+                type: K4_TYPE.TYPE_C,
+                totalProfit: sumBy(
+                    statements_c.filter((s) => s.pnl > 0),
+                    'pnl',
+                ),
+                totalLoss: sumBy(
+                    statements_c.filter((s) => s.pnl < 0),
+                    'pnl',
+                ),
+                totalPaid: sumBy(statements_c, 'paid'),
+                totalReceived: sumBy(statements_c, 'received'),
+                totalPnl: sumBy(statements_c, 'pnl'),
+                totalStatements: statements_c.length,
+            };
             const typeD_totals: K4TypeTotals = {
                 type: K4_TYPE.TYPE_D,
                 totalProfit: sumBy(
@@ -458,14 +563,24 @@ export class SRUFile {
                 totalPnl: sumBy(statements_d, 'pnl'),
                 totalStatements: statements_d.length,
             };
+            const totals = [typeA_totals, typeC_totals, typeD_totals];
             const p: SRUPackage = {
                 info: this.sruInfo,
                 statements: statements,
                 forms: forms,
-                totals: [typeA_totals, typeD_totals],
+                totals: typeFilter ? totals.filter((total) => total.type === typeFilter) : totals,
             };
             return p;
         });
+        logger.info(`${this.account}: Total packages created: ${packages.length}`);
+        for (let i = 0; i < packages.length; i++) {
+            const pkg = packages[i];
+            logger.info(
+                `${this.account}: Package ${i + 1} has ${pkg.statements.length} statements, with totals: ${pkg.totals
+                    .map((t) => `${t.type} PnL: ${t.totalPnl}, Statements: ${t.totalStatements}`)
+                    .join(' | ')}`,
+            );
+        }
         return packages;
     }
 }

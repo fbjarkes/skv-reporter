@@ -2,7 +2,7 @@
  * CLI script to generate SRU files from an IBKR Flex Query XML export.
  *
  * Usage:
- *   npx ts-node scripts/generate-sru.ts <xml-file> <tax-year>
+ *   npx ts-node scripts/generate-sru.ts <xml-file> <tax-year> [--type TYPE_A|TYPE_C|TYPE_D]
  *
  * Personal info is read from environment variables (or a .env file):
  *   SRU_ID        - Personal/organisation number (personnummer)
@@ -11,6 +11,7 @@
  *   SRU_MAIL      - Email address
  *   SRU_CODE      - Postal code
  *   SRU_CITY      - City
+ *   POSITIONS_FILE - Optional CSV file with initial cash positions (ASSET,YEAR,CUM_QTY,CUM_COST,...)
  *
  * Output files are written to the current working directory:
  *   info.sru
@@ -24,16 +25,21 @@ import * as dotenv from 'dotenv';
 
 import { FlexQueryParser } from '../src/flexquery/flexquery-parser';
 import { SRUFile, SRUInfo, generateBlanketterFileData, totalsFileData } from '../src/sru/sru-file';
-import { Statement } from '../src/types/statement';
+import { parseInitialCashPositionsFile } from '../src/sru/sru-utils';
+import { K4_TYPE, Statement } from '../src/types/statement';
 
 dotenv.config();
 
 // --- arg parsing ---
 
-const [, , xmlFile, taxYearArg] = process.argv;
+const usage = 'Usage: npx ts-node scripts/generate-sru.ts <xml-file> <tax-year> [TYPE_A|TYPE_C|TYPE_D]';
+
+const positionalArgs = process.argv.slice(2).filter((a) => !a.startsWith('-'));
+
+const [xmlFile, taxYearArg, typeArg] = positionalArgs;
 
 if (!xmlFile || !taxYearArg) {
-    console.error('Usage: npx ts-node scripts/generate-sru.ts <xml-file> <tax-year>');
+    console.error(usage);
     process.exit(1);
 }
 
@@ -42,6 +48,14 @@ if (isNaN(taxYear)) {
     console.error(`Invalid tax year: ${taxYearArg}`);
     process.exit(1);
 }
+
+const typeMap: Record<string, K4_TYPE> = {
+    TYPE_A: K4_TYPE.TYPE_A,
+    TYPE_C: K4_TYPE.TYPE_C,
+    TYPE_D: K4_TYPE.TYPE_D,
+};
+const selectedType: K4_TYPE | undefined = typeArg ? typeMap[typeArg] : undefined;
+const account: string | undefined = process.env.ACCOUNT;
 
 const sruInfo: SRUInfo = {
     taxYear,
@@ -68,7 +82,7 @@ const main = async () => {
     console.log(`Reading: ${resolvedPath}`);
     const fileData = await fs.readFile(resolvedPath, 'utf8');
 
-    const flexParser = new FlexQueryParser();
+    const flexParser = new FlexQueryParser(account);
     const stats = flexParser.parse(fileData);
 
     console.log('\n--- Parse summary ---');
@@ -83,11 +97,24 @@ const main = async () => {
         console.warn(`Unhandled:    ${stats.tradesUnhandledCount} trades skipped`);
     }
 
-    const trades = flexParser.getClosingTrades();
+    const trades = [
+        ...flexParser.getClosingTrades(),
+        ...flexParser.getAllTrades().filter((t) => t.securityType === 'CASH'),
+    ];
     const rates = flexParser.getConversionRates();
 
-    const sruFile = new SRUFile(rates, trades, sruInfo);
-    const packages = sruFile.getSRUPackages();
+    const sruFile = new SRUFile(rates, trades, sruInfo, account);
+    const positionsFile = process.env.POSITIONS_FILE;
+    if (positionsFile) {
+        const resolvedPositionsPath = path.resolve(positionsFile);
+        const cashPositions = await parseInitialCashPositionsFile(resolvedPositionsPath, taxYear);
+        sruFile.setInitialCashPositions(cashPositions);
+        console.log(`Loaded ${cashPositions.length} initial cash position(s) from ${resolvedPositionsPath}`);
+    } else {
+        console.log('POSITIONS_FILE not set. No initial cash positions loaded.');
+    }
+
+    const packages = sruFile.getSRUPackages(selectedType);
 
     console.log(`\nGenerating ${packages.length} SRU package(s)...`);
 
@@ -127,6 +154,7 @@ const main = async () => {
     });
 
     console.log('\n--- Statement summary (SEK) ---');
+    console.log(`Account: ${account}`);
     console.log(`Statements:     ${allStatements.length}`);
     console.log(`Total PnL:      ${totalPnl.toFixed(0)}`);
     console.log(`Total profit:   ${totalProfit.toFixed(0)}`);

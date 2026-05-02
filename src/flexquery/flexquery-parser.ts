@@ -137,9 +137,14 @@ export class FlexQueryParser {
         parseAttributeValue: false,
     };
 
+    #account: string;
     #rates: Map<string, Map<string, number>> = new Map();
     #trades: TradeType[] = [];
     #unhandled: FQTrade[] = [];
+
+    constructor(account?: string) {
+        this.#account = account || '<ACCOUNT>';
+    }
 
     toDateString(dateTime: string): string {
         // TODO: default to 'New_York/America' tz?
@@ -165,6 +170,7 @@ export class FlexQueryParser {
 
     public parse(fileData: string) {
         const xmlData = parser.parse(fileData, this.options);
+        //TODO: fail here if account is specified and doesn't match any of the trades in the file?
         const size = fileData.length / 1024 / 1024;
         let winners = 0,
             losers = 0,
@@ -248,7 +254,9 @@ export class FlexQueryParser {
                     }
                     this.#trades.push(t);
                 } else {
-                    logger.warn(`Not handling FQTrade with O/C indicator '${item._openCloseIndicator}'`);
+                    logger.warn(
+                        `${item._symbol}: Not handling FQTrade with O/C indicator '${item._openCloseIndicator}'`,
+                    );
                     logger.debug(item);
                     this.#unhandled.push(item);
                 }
@@ -276,7 +284,7 @@ export class FlexQueryParser {
         // Add Entry dates for closing trades
         connectTrades(this.#trades);
         logger.info(
-            `Parsed: XML data (${size.toFixed(2)}mb), found ${this.#trades.length} trades and ${
+            `${this.#account}: Parsed: XML data (${size.toFixed(2)}mb), found ${this.#trades.length} trades and ${
                 this.#rates.size
             } FX mappings`,
         );
