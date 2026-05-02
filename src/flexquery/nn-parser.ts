@@ -68,6 +68,11 @@ export class NNParser {
             }
 
             const row = this.toRow(columns, headerIndex);
+            if (row.currency !== 'SEK') {
+                logger.warn(`Row ${i + 1}: skipping non-SEK transaction (currency: ${row.currency})`);
+                this.#unhandled.push(`Row ${i + 1}: skipping non-SEK transaction (currency: ${row.currency})`);
+                continue;
+            }
             if (row.transactionType !== 'KÖPT' && row.transactionType !== 'SÅLT') {
                 this.#unhandled.push(`Row ${i + 1}: unsupported transaction type '${row.transactionType}'`);
                 continue;
@@ -128,6 +133,7 @@ export class NNParser {
             'ISIN',
             'Antal',
             'Kurs',
+            'Valuta',
             'Belopp',
             'Inköpsvärde',
             'Resultat',
@@ -144,17 +150,6 @@ export class NNParser {
             indexByName[header] = index;
         });
 
-        const currencyIndexes: number[] = [];
-        headers.forEach((header, idx) => {
-            if (header === 'Valuta') {
-                currencyIndexes.push(idx);
-            }
-        });
-        if (currencyIndexes.length === 0) {
-            throw new Error("Invalid Nordnet CSV: missing required header 'Valuta'");
-        }
-
-        indexByName.Valuta = currencyIndexes[0];
         return indexByName;
     }
 

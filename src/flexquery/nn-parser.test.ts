@@ -77,6 +77,24 @@ describe('NNParser', () => {
         });
     });
 
+    it('should skip non-SEK transactions and log a warning', () => {
+        const header =
+            'Id,Bokföringsdag,Affärsdag,Likviddag,Depå,Transaktionstyp,Värdepapper,ISIN,Antal,Kurs,Ränta,Total Avgift,Valuta,Belopp,Valuta,Inköpsvärde,Valuta,Resultat,Valuta,Totalt antal,Saldo,Växlingskurs,Transaktionstext,Makuleringsdatum,Notanummer,Verifikationsnummer,Courtage,Valuta,Referensvalutakurs,Initial låneränta';
+        const usdRow =
+            '1,2025-05-02,2025-05-02,2025-05-06,1234,SÅLT,AAPL,US0378331005,10,150.0,0,0,USD,1500,USD,,,-50,USD,0,0,,,,1,1,0,USD,,';
+        const sekRow =
+            '2,2025-05-02,2025-05-02,2025-05-06,1234,KÖPT,VOLVB,SE0000115446,100,100.0,0,0,SEK,-10000,SEK,10000,SEK,0,SEK,100,0,,,,2,2,0,SEK,,';
+        const csvData = [header, usdRow, sekRow].join('\n');
+
+        const stats = nnParser.parse(csvData);
+
+        expect(stats.tradesCount).to.equal(1);
+        expect(stats.tradesUnhandledCount).to.equal(1);
+        const trades = nnParser.getAllTrades();
+        expect(trades).to.have.lengthOf(1);
+        expect(trades[0].tradeCurrency).to.equal('SEK');
+    });
+
     it('should include parser summary values', async () => {
         const testFileData = await fs.readFile('test/fixtures/nordnet.csv', 'utf8');
         const stats = nnParser.parse(testFileData);
