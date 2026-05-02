@@ -55,6 +55,7 @@ const typeMap: Record<string, K4_TYPE> = {
     TYPE_D: K4_TYPE.TYPE_D,
 };
 const selectedType: K4_TYPE | undefined = typeArg ? typeMap[typeArg] : undefined;
+const account: string | undefined = process.env.ACCOUNT;
 
 const sruInfo: SRUInfo = {
     taxYear,
@@ -81,7 +82,7 @@ const main = async () => {
     console.log(`Reading: ${resolvedPath}`);
     const fileData = await fs.readFile(resolvedPath, 'utf8');
 
-    const flexParser = new FlexQueryParser();
+    const flexParser = new FlexQueryParser(account);
     const stats = flexParser.parse(fileData);
 
     console.log('\n--- Parse summary ---');
@@ -102,7 +103,7 @@ const main = async () => {
     ];
     const rates = flexParser.getConversionRates();
 
-    const sruFile = new SRUFile(rates, trades, sruInfo);
+    const sruFile = new SRUFile(rates, trades, sruInfo, account);
     const positionsFile = process.env.POSITIONS_FILE;
     if (positionsFile) {
         const resolvedPositionsPath = path.resolve(positionsFile);
@@ -153,6 +154,7 @@ const main = async () => {
     });
 
     console.log('\n--- Statement summary (SEK) ---');
+    console.log(`Account: ${account}`);
     console.log(`Statements:     ${allStatements.length}`);
     console.log(`Total PnL:      ${totalPnl.toFixed(0)}`);
     console.log(`Total profit:   ${totalProfit.toFixed(0)}`);

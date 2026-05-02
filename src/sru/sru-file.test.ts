@@ -1128,6 +1128,7 @@ describe('SRU Files', () => {
                     taxYear: 2021,
                     id: '19900101-1234',
                 },
+                'ACCOUNT',
                 new Date(2022, 0, 1, 14, 30, 0),
             );
 

@@ -155,6 +155,7 @@ export const isCommodityFuture = (symbol: string) => {
 };
 export class SRUFile {
     sruInfo?: SRUInfo;
+    account?: string;
     title = 'SKV-Reporter';
     statementsPerFile: number;
     maxTypeAStatements: number;
@@ -171,6 +172,7 @@ export class SRUFile {
         fxRates: Map<string, Map<string, number>>,
         trades: TradeType[],
         data?: SRUInfo,
+        account?: string,
         date = new Date(),
         statementsPerFile = 3500, // approx. ~5MB
         maxTypeAStatements = MAX_TYPE_A_STATEMENTS,
@@ -178,6 +180,7 @@ export class SRUFile {
         maxTypeDStatements = MAX_TYPE_D_STATEMENTS,
     ) {
         this.sruInfo = data;
+        this.account = account;
         this.fxRates = fxRates;
         this.trades = trades;
         this.createDate = date;
@@ -191,7 +194,7 @@ export class SRUFile {
         //TODO: use account as part of key (also need account later in parsing...)
         cashPositions.forEach((pos) => {
             this.cashPositions.set(pos.symbol, pos);
-            logger.info(`${pos.symbol}: Initializing Cash Position ${pos}`);
+            logger.info(`${pos.symbol} (${this.account}): Initializing Cash Position ${pos}`);
         });
     }
 
@@ -267,7 +270,7 @@ export class SRUFile {
                     }),
                 );
                 logger.info(
-                    `${symbol}: Initializing cash position for symbol with 0 qty and 0 cost in currency ${trade.tradeCurrency}`,
+                    `${symbol} (${this.account}): Initializing cash position for symbol with 0 qty and 0 cost in currency ${trade.tradeCurrency}`,
                 );
             }
             const pos = this.cashPositions.get(symbol)!;
@@ -341,7 +344,7 @@ export class SRUFile {
         logger.info(`Processed ${cashTrades.length} cash trades.`);
         this.cashPositions.forEach((pos) => {
             logger.info(
-                `${pos.symbol}: Final cash position qty=${pos.cumulativeQty}, cost=${pos.cumulativeCost}, currency=${pos.currency}`,
+                `${pos.symbol} (${this.account}): Final cash position qty=${pos.cumulativeQty}, cost=${pos.cumulativeCost}, currency=${pos.currency}`,
             );
         });
 
@@ -437,13 +440,13 @@ export class SRUFile {
         //TODO: better to have "generate" or "initialize" method? (this is where all core stuff is happening)
         let allStatements;
         if (typeFilter == K4_TYPE.TYPE_C) {
-            logger.info(`Generating SRU packages for TYPE_C statements`);
+            logger.info(`${this.account}: Generating SRU packages for TYPE_C statements`);
             allStatements = this.getCashStatements();
         } else if (typeFilter == K4_TYPE.TYPE_A) {
-            logger.info(`Generating SRU packages for TYPE_A statements`);
+            logger.info(`${this.account}: Generating SRU packages for TYPE_A statements`);
             allStatements = this.getStatements();
         } else {
-            logger.info(`Generating SRU packages for all statement types`);
+            logger.info(`${this.account}: Generating SRU packages for all statement types`);
             allStatements = [...this.getStatements(), ...this.getCashStatements()];
         }
 
@@ -452,7 +455,7 @@ export class SRUFile {
             ? allStatements.filter((statement: Statement) => statement.type === typeFilter)
             : allStatements;
         logger.info(
-            `Generating SRU packages for ${filteredStatements.length} statements with ${
+            `${this.account}: Generating SRU packages for ${filteredStatements.length} statements with ${
                 this.statementsPerFile
             } statements per file${typeFilter ? ` (type filter: ${typeFilter})` : ''}`,
         );
@@ -466,7 +469,7 @@ export class SRUFile {
             const statements_c = statements.filter((s: Statement) => s.type === K4_TYPE.TYPE_C);
             const statements_d = statements.filter((s: Statement) => s.type === K4_TYPE.TYPE_D);
             logger.info(
-                `Handling ${statements_a.length} TYPE_A, ${statements_c.length} TYPE_C, ${statements_d.length} TYPE_D in package`,
+                `${this.account}: Handling ${statements_a.length} TYPE_A, ${statements_c.length} TYPE_C, ${statements_d.length} TYPE_D in package`,
             );
             // TYPE_A
             chunk(statements_a, this.maxTypeAStatements).forEach((statements_a_chunk: Statement[]) => {
