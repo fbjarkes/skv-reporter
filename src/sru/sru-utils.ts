@@ -96,6 +96,7 @@ export const parseInitialCashPositionsCsv = (content: string, taxYear: number): 
         positions.push(
             new CashPosition({
                 symbol,
+                account: values[accountIndex],
                 cumQty,
                 cumCost,
                 currency,

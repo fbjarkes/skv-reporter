@@ -326,8 +326,20 @@ describe('SRU Files', () => {
                 //ASSET, ACCOUNT, YEAR, CUM_QTY, CUM_COST, AVG_COST, COMMENT
                 //USD_SEK, U001, 2024, 500, 10000, 20, "Initial value for trade1.xml test cash trades 500 @ 20.0 USD/SEK"
                 const cashPositions = [
-                    new CashPosition({ symbol: 'USD/SEK', cumQty: 500, cumCost: 10000, currency: 'SEK' }),
-                    new CashPosition({ symbol: 'BTC/USD', cumQty: 0.00555, cumCost: 300, currency: 'USD' }),
+                    new CashPosition({
+                        symbol: 'USD/SEK',
+                        cumQty: 500,
+                        cumCost: 10000,
+                        currency: 'SEK',
+                        account: 'TEST_ACCOUNT',
+                    }), // 500 @ 20.0 USDSEK, then sell 500 @ 15.0 USDSEK, pnl: -2500 without commission
+                    new CashPosition({
+                        symbol: 'BTC/USD',
+                        cumQty: 0.00555,
+                        cumCost: 300,
+                        currency: 'USD',
+                        account: 'TEST_ACCOUNT',
+                    }),
                 ];
 
                 const sru = new SRUFile(fxRates, []);
@@ -429,7 +441,15 @@ describe('SRU Files', () => {
                     exitDateTime: '2025-01-16 13:00:00',
                     securityType: 'CASH',
                 });
-                const cashPositions = [new CashPosition({ symbol: 'USD/SEK', cumQty: 0, cumCost: 0, currency: 'SEK' })];
+                const cashPositions = [
+                    new CashPosition({
+                        symbol: 'USD/SEK',
+                        cumQty: 0,
+                        cumCost: 0,
+                        currency: 'SEK',
+                        account: 'TEST_ACCOUNT',
+                    }),
+                ];
 
                 const sru = new SRUFile(fxRates, [t1, t2, t3]);
                 sru.setInitialCashPositions(cashPositions);
@@ -457,7 +477,13 @@ describe('SRU Files', () => {
 
             it('should create reset cash position and add new position again', () => {
                 const cashPositions = [
-                    new CashPosition({ symbol: 'USD/SEK', cumQty: 1_000, cumCost: 10_020, currency: 'SEK' }), // Starting with 1000 USD/SEK @ 10.0 + commission (20SEK)
+                    new CashPosition({
+                        symbol: 'USD/SEK',
+                        cumQty: 1_000,
+                        cumCost: 10_020,
+                        currency: 'SEK',
+                        account: 'TEST_ACCOUNT',
+                    }), // Starting with 1000 USD/SEK @ 10.0 + commission (20SEK)
                 ];
                 // Buy 1000 USD/SEK @ 20.0, avg. 15.0
                 // Sell 2000 USD/SEK @ 25.0, pnl: +20000ish
@@ -597,7 +623,13 @@ describe('SRU Files', () => {
                 });
 
                 const cashPositions = [
-                    new CashPosition({ symbol: 'USD/SEK', cumQty: 100, cumCost: 1000, currency: 'SEK' }),
+                    new CashPosition({
+                        symbol: 'USD/SEK',
+                        cumQty: 100,
+                        cumCost: 1000,
+                        currency: 'SEK',
+                        account: 'TEST_ACCOUNT',
+                    }),
                 ];
                 const sru = new SRUFile(fxRates, [t1]);
                 sru.setInitialCashPositions(cashPositions);
@@ -650,7 +682,15 @@ describe('SRU Files', () => {
                     entryDateTime: '2025-01-16 13:00:00',
                     securityType: 'CASH',
                 });
-                const cashPositions = [new CashPosition({ symbol: 'USD/SEK', cumQty: 0, cumCost: 0, currency: 'SEK' })];
+                const cashPositions = [
+                    new CashPosition({
+                        symbol: 'USD/SEK',
+                        cumQty: 0,
+                        cumCost: 0,
+                        currency: 'SEK',
+                        account: 'TEST_ACCOUNT',
+                    }),
+                ];
 
                 const sru = new SRUFile(fxRates, [t1, t2, t3]);
                 sru.setInitialCashPositions(cashPositions);
@@ -1024,8 +1064,20 @@ describe('SRU Files', () => {
                 exitDateTime: '2021-01-11 12:00:00',
             });
             const cashPositions = [
-                new CashPosition({ symbol: 'USD/SEK', cumQty: 500, cumCost: 10000, currency: 'SEK' }), // 500 @ 20.0 USDSEK, then sell 500 @ 15.0 USDSEK, pnl: -2500 without commission
-                new CashPosition({ symbol: 'BTC/USD', cumQty: 0.00555, cumCost: 300, currency: 'USD' }),
+                new CashPosition({
+                    symbol: 'USD/SEK',
+                    cumQty: 500,
+                    cumCost: 10000,
+                    currency: 'SEK',
+                    account: 'TEST_ACCOUNT',
+                }), // 500 @ 20.0 USDSEK, then sell 500 @ 15.0 USDSEK, pnl: -2500 without commission
+                new CashPosition({
+                    symbol: 'BTC/USD',
+                    cumQty: 0.00555,
+                    cumCost: 300,
+                    currency: 'USD',
+                    account: 'TEST_ACCOUNT',
+                }),
             ];
             const sru = new SRUFile(fxRates, [t1, t2, t3, t4], {
                 name: 'TEST',
@@ -1148,7 +1200,7 @@ describe('SRU Files', () => {
                 id: '19900101-1234',
             });
             sru.setInitialCashPositions([
-                new CashPosition({ symbol: 'USD/SEK', cumQty: 500, cumCost: 10000, currency: 'SEK' }),
+                new CashPosition({ symbol: 'USD/SEK', cumQty: 500, cumCost: 10000, currency: 'SEK', account: '' }),
             ]);
 
             const packages = sru.getSRUPackages(K4_TYPE.TYPE_C);

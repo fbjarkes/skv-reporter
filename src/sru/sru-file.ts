@@ -191,9 +191,7 @@ export class SRUFile {
         //TODO: use account as part of key (also need account later in parsing...)
         cashPositions.forEach((pos) => {
             this.cashPositions.set(pos.symbol, pos);
-            logger.info(
-                `${pos.symbol}: Initializing Cash Position qty=${pos.cumulativeQty}, cost=${pos.cumulativeCost}, currency=${pos.currency}`,
-            );
+            logger.info(`${pos.symbol}: Initializing Cash Position ${pos}`);
         });
     }
 
@@ -260,16 +258,20 @@ export class SRUFile {
             if (!this.cashPositions.has(symbol)) {
                 this.cashPositions.set(
                     symbol,
-                    new CashPosition({ symbol, cumQty: 0, cumCost: 0, currency: trade.tradeCurrency }),
+                    new CashPosition({
+                        symbol,
+                        cumQty: 0,
+                        cumCost: 0,
+                        currency: trade.tradeCurrency,
+                        account: 'DEFAULT_ACCOUNT',
+                    }),
                 );
                 logger.info(
                     `${symbol}: Initializing cash position for symbol with 0 qty and 0 cost in currency ${trade.tradeCurrency}`,
                 );
             }
             const pos = this.cashPositions.get(symbol)!;
-            logger.info(
-                `${pos.symbol}: Using cash Position qty=${pos.cumulativeQty}, cost=${pos.cumulativeCost}, currency=${pos.currency}, for trade='${trade}'`,
-            );
+            //logger.debug(`${pos.symbol}: Using cash Position qty=${pos.cumulativeQty}, cost=${pos.cumulativeCost}, currency=${pos.currency}, for trade='${trade}'`);
 
             //TODO: use field 'buySell' instead of checking?
             if (trade.quantity > 0) {
@@ -294,7 +296,9 @@ export class SRUFile {
                 const saleQty = Math.abs(trade.quantity);
                 const avgCost = pos.averageCost;
                 pos.cumulativeQty -= saleQty;
-                pos.cumulativeCost = pos.cumulativeQty * avgCost; //TODO: or pos.cumulativeCost -= saleQty *avgCost ?
+                //TODO: or pos.cumulativeCost -= saleQty * avgCost ?
+                //TODO: or pos.cumulativeCost -= saleQty * trade.exitPrice?
+                pos.cumulativeCost = pos.cumulativeQty * avgCost;
 
                 // Create statement (all in SEK)
                 const received = saleQty * trade.exitPrice;
