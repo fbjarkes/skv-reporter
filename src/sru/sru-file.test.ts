@@ -718,7 +718,13 @@ describe('SRU Files', () => {
                 expect(pos_eur!.averageCost).to.equal(153);
             });
 
-            it('should handle same trade currency with different pairs - EUR/JPY, EUR/USD, EUR/SEK', () => {});
+            it('should handle same trade currency with different pairs - EUR/JPY, EUR/USD, EUR/SEK', () => {
+                // e.g. buy 100 EUR with USD, then buy 100 EUR with SEK, both with commission in USD
+                // This is one single EUR position with commissions included in cum. cost
+            });
+            it('should handle trades with trade currency equals commission currency - AUD/USD, EUR/USD', () => {
+                // e.g. cash_trade3.xml
+            });
         });
     });
 
