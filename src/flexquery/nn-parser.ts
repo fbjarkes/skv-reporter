@@ -57,8 +57,9 @@ export class NNParser {
             throw new Error('Invalid Nordnet CSV: expected header and at least one data row');
         }
 
+        // TODO: Use a proper CSV parsing library (e.g. csv-parse) to handle quoted fields correctly.
         const headers = lines[0].split(',');
-        const headerIndex = this.getHeaderIndexes(headers);
+        const { indexes: headerIndex, valutaIndexes } = this.getHeaderIndexes(headers);
 
         for (let i = 1; i < lines.length; i++) {
             const columns = lines[i].split(',');
@@ -67,12 +68,18 @@ export class NNParser {
                 continue;
             }
 
-            const row = this.toRow(columns, headerIndex);
-            if (row.currency !== 'SEK') {
-                logger.warn(`Row ${i + 1}: skipping non-SEK transaction (currency: ${row.currency})`);
-                this.#unhandled.push(`Row ${i + 1}: skipping non-SEK transaction (currency: ${row.currency})`);
+            // Each 'Valuta' column refers to the preceding value column; skip any row where any
+            // Valuta field is non-SEK since FX conversion is not supported.
+            const nonSekCurrency = valutaIndexes
+                .map((idx) => columns[idx]?.trim())
+                .find((c) => c && c !== 'SEK');
+            if (nonSekCurrency) {
+                logger.warn(`Row ${i + 1}: skipping non-SEK transaction (currency: ${nonSekCurrency})`);
+                this.#unhandled.push(`Row ${i + 1}: skipping non-SEK transaction (currency: ${nonSekCurrency})`);
                 continue;
             }
+
+            const row = this.toRow(columns, headerIndex);
             if (row.transactionType !== 'KÖPT' && row.transactionType !== 'SÅLT') {
                 this.#unhandled.push(`Row ${i + 1}: unsupported transaction type '${row.transactionType}'`);
                 continue;
@@ -126,7 +133,7 @@ export class NNParser {
         };
     }
 
-    private getHeaderIndexes(headers: string[]): Record<string, number> {
+    private getHeaderIndexes(headers: string[]): { indexes: Record<string, number>; valutaIndexes: number[] } {
         const requiredHeaders = [
             'Transaktionstyp',
             'Värdepapper',
@@ -141,16 +148,22 @@ export class NNParser {
             'Courtage',
         ];
 
-        const indexByName: Record<string, number> = {};
+        const indexes: Record<string, number> = {};
         requiredHeaders.forEach((header) => {
             const index = headers.indexOf(header);
             if (index === -1) {
                 throw new Error(`Invalid Nordnet CSV: missing required header '${header}'`);
             }
-            indexByName[header] = index;
+            indexes[header] = index;
         });
 
-        return indexByName;
+        // Collect all 'Valuta' column positions; each one refers to the preceding value column.
+        const valutaIndexes = headers.reduce<number[]>((acc, header, idx) => {
+            if (header === 'Valuta') acc.push(idx);
+            return acc;
+        }, []);
+
+        return { indexes, valutaIndexes };
     }
 
     private toNumber(value: string): number {
