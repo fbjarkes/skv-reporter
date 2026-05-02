@@ -1,8 +1,8 @@
 /**
- * CLI script to generate SRU files from an IBKR Flex Query XML export.
+ * CLI script to generate SRU files from broker exports.
  *
  * Usage:
- *   npx ts-node scripts/generate-sru.ts <xml-file> <tax-year> [--type TYPE_A|TYPE_C|TYPE_D]
+ *   npx ts-node scripts/generate-sru.ts <input-file> <tax-year> [--type TYPE_A|TYPE_C|TYPE_D] [--broker ibkr|nordnet|kraken]
  *
  * Personal info is read from environment variables (or a .env file):
  *   SRU_ID        - Personal/organisation number (personnummer)
@@ -22,21 +22,45 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as dotenv from 'dotenv';
+// @ts-ignore parseArgs is available at runtime but missing in this project's @types/node version
+import { parseArgs } from 'node:util';
 
 import { FlexQueryParser } from '../src/flexquery/flexquery-parser';
 import { SRUFile, SRUInfo, generateBlanketterFileData, totalsFileData } from '../src/sru/sru-file';
 import { parseInitialCashPositionsFile } from '../src/sru/sru-utils';
 import { K4_TYPE, Statement } from '../src/types/statement';
+import { TradeType } from '../src/types/trade';
 
 dotenv.config();
 
 // --- arg parsing ---
 
-const usage = 'Usage: npx ts-node scripts/generate-sru.ts <xml-file> <tax-year> [TYPE_A|TYPE_C|TYPE_D]';
+const usage =
+    'Usage: npx ts-node scripts/generate-sru.ts <input-file> <tax-year> [--type TYPE_A|TYPE_C|TYPE_D] [--broker ibkr|nordnet|kraken]';
 
-const positionalArgs = process.argv.slice(2).filter((a) => !a.startsWith('-'));
+const parsedArgs = parseArgs({
+    args: process.argv.slice(2),
+    allowPositionals: true,
+    options: {
+        broker: {
+            type: 'string',
+        },
+        type: {
+            type: 'string',
+        },
+        help: {
+            type: 'boolean',
+            short: 'h',
+        },
+    },
+});
 
-const [xmlFile, taxYearArg, typeArg] = positionalArgs;
+if (parsedArgs.values.help) {
+    console.log(usage);
+    process.exit(0);
+}
+
+const [xmlFile, taxYearArg] = parsedArgs.positionals;
 
 if (!xmlFile || !taxYearArg) {
     console.error(usage);
@@ -49,12 +73,25 @@ if (isNaN(taxYear)) {
     process.exit(1);
 }
 
-const typeMap: Record<string, K4_TYPE> = {
-    TYPE_A: K4_TYPE.TYPE_A,
-    TYPE_C: K4_TYPE.TYPE_C,
-    TYPE_D: K4_TYPE.TYPE_D,
-};
-const selectedType: K4_TYPE | undefined = typeArg ? typeMap[typeArg] : undefined;
+const typeArg = parsedArgs.values.type?.toUpperCase();
+const validTypes = [K4_TYPE.TYPE_A, K4_TYPE.TYPE_C, K4_TYPE.TYPE_D] as const;
+const selectedType = validTypes.find((t) => t === typeArg);
+if (typeArg && !selectedType) {
+    console.error(`Invalid type: ${parsedArgs.values.type}`);
+    console.error(usage);
+    process.exit(1);
+}
+
+type Broker = 'ibkr' | 'nordnet' | 'kraken';
+const brokerArg = parsedArgs.values.broker?.toLowerCase() || 'ibkr';
+const brokers = ['ibkr', 'nordnet', 'kraken'] as const;
+const selectedBroker = brokers.find((b) => b === brokerArg) as Broker | undefined;
+if (!selectedBroker) {
+    console.error(`Invalid broker: ${parsedArgs.values.broker}`);
+    console.error(usage);
+    process.exit(1);
+}
+
 const account: string | undefined = process.env.ACCOUNT;
 
 const sruInfo: SRUInfo = {
@@ -77,11 +114,10 @@ if (missingEnv.length > 0) {
 
 // --- main ---
 
-const main = async () => {
-    const resolvedPath = path.resolve(xmlFile);
-    console.log(`Reading: ${resolvedPath}`);
-    const fileData = await fs.readFile(resolvedPath, 'utf8');
-
+const parseIbkrInput = (
+    fileData: string,
+    account?: string,
+): { trades: TradeType[]; rates: Map<string, Map<string, number>> } => {
     const flexParser = new FlexQueryParser(account);
     const stats = flexParser.parse(fileData);
 
@@ -102,6 +138,30 @@ const main = async () => {
         ...flexParser.getAllTrades().filter((t) => t.securityType === 'CASH'),
     ];
     const rates = flexParser.getConversionRates();
+    return { trades, rates };
+};
+
+const parseBrokerInput = (
+    broker: Broker,
+    fileData: string,
+    account?: string,
+): { trades: TradeType[]; rates: Map<string, Map<string, number>> } => {
+    switch (broker) {
+        case 'ibkr':
+            return parseIbkrInput(fileData, account);
+        case 'nordnet':
+            throw new Error('Broker nordnet is not implemented yet');
+        case 'kraken':
+            throw new Error('Broker kraken is not implemented yet');
+    }
+};
+
+const main = async () => {
+    const resolvedPath = path.resolve(xmlFile);
+    console.log(`Reading: ${resolvedPath}`);
+    const fileData = await fs.readFile(resolvedPath, 'utf8');
+    console.log(`Broker: ${selectedBroker}`);
+    const { trades, rates } = parseBrokerInput(selectedBroker, fileData, account);
 
     const sruFile = new SRUFile(rates, trades, sruInfo, account);
     const positionsFile = process.env.POSITIONS_FILE;
@@ -113,7 +173,6 @@ const main = async () => {
     } else {
         console.log('POSITIONS_FILE not set. No initial cash positions loaded.');
     }
-
     const packages = sruFile.getSRUPackages(selectedType);
 
     console.log(`\nGenerating ${packages.length} SRU package(s)...`);
