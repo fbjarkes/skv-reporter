@@ -48,6 +48,16 @@ interface FQRate {
     _rate: number;
 }
 
+interface FQStatement {
+    _accountId?: string;
+    Trades?: {
+        Trade?: FQTrade[];
+    };
+    ConversionRates?: {
+        ConversionRate?: FQRate[];
+    };
+}
+
 interface MyData {
     _currency: string;
     _assetCategory: string;
@@ -170,7 +180,12 @@ export class FlexQueryParser {
 
     public parse(fileData: string) {
         const xmlData = parser.parse(fileData, this.options);
-        //TODO: fail here if account is specified and doesn't match any of the trades in the file?
+        const flexStatement: FQStatement = xmlData.FlexQueryResponse.FlexStatements.FlexStatement;
+        if (this.#account !== '<ACCOUNT>' && flexStatement._accountId && flexStatement._accountId !== this.#account) {
+            throw new Error(
+                `Invalid FlexStatement account: expected '${this.#account}' but got '${flexStatement._accountId}'`,
+            );
+        }
         const size = fileData.length / 1024 / 1024;
         let winners = 0,
             losers = 0,
@@ -185,8 +200,8 @@ export class FlexQueryParser {
             firstTradeDate = '',
             lastTradeDate = '';
         // TODO: handle 'xmlData.FlexQueryStatements['count'] > 1
-        if (xmlData.FlexQueryResponse.FlexStatements.FlexStatement.Trades.Trade) {
-            xmlData.FlexQueryResponse.FlexStatements.FlexStatement.Trades.Trade.forEach((item: FQTrade) => {
+        if (flexStatement.Trades?.Trade) {
+            flexStatement.Trades.Trade.forEach((item: FQTrade) => {
                 if (item._assetCategory === 'CASH') {
                     const t = new TradeType();
                     t.symbol = item._symbol.replace('.', '/');
@@ -264,21 +279,17 @@ export class FlexQueryParser {
             });
         }
 
-        if (xmlData.FlexQueryResponse.FlexStatements.FlexStatement.ConversionRates) {
-            xmlData.FlexQueryResponse.FlexStatements.FlexStatement.ConversionRates.ConversionRate.forEach(
-                (item: FQRate) => {
-                    const dateString = format(parse(item._reportDate, FQ_DATE_FORMAT, new Date()), DATE_FORMAT);
-                    if (this.#rates.has(dateString)) {
-                        this.#rates
-                            .get(dateString)
-                            ?.set(`${item._fromCurrency}/${item._toCurrency}`, Number(item._rate));
-                    } else {
-                        const pairs = new Map();
-                        pairs.set(`${item._fromCurrency}/${item._toCurrency}`, Number(item._rate));
-                        this.#rates.set(dateString, pairs);
-                    }
-                },
-            );
+        if (flexStatement.ConversionRates?.ConversionRate) {
+            flexStatement.ConversionRates.ConversionRate.forEach((item: FQRate) => {
+                const dateString = format(parse(item._reportDate, FQ_DATE_FORMAT, new Date()), DATE_FORMAT);
+                if (this.#rates.has(dateString)) {
+                    this.#rates.get(dateString)?.set(`${item._fromCurrency}/${item._toCurrency}`, Number(item._rate));
+                } else {
+                    const pairs = new Map();
+                    pairs.set(`${item._fromCurrency}/${item._toCurrency}`, Number(item._rate));
+                    this.#rates.set(dateString, pairs);
+                }
+            });
             addCalculatedPairs(this.#rates);
         }
 

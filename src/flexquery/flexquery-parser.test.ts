@@ -147,6 +147,15 @@ describe('FlexQueryParser', () => {
             expect(trades[0].exitDateTime).to.equal('');
             expect(trades[0].durationMin).to.equal(-1);
         });
+
+        it('should throw when parser account does not match parsed statement account', async () => {
+            const testFileData = await fs.readFile('test/fixtures/fut_trades.xml', 'utf8');
+            const parserWithWrongAccount = new FlexQueryParser('U00000000');
+
+            expect(() => parserWithWrongAccount.parse(testFileData)).to.throw(
+                /expected 'U00000000' but got 'U12345678'/,
+            );
+        });
     });
 
     describe('CASH trades', () => {
