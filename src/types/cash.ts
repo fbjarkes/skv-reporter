@@ -49,6 +49,6 @@ export class CashPosition {
     }
 
     toString(): string {
-        return `CashPosition(symbol=${this.symbol}, account=${this.account}, cumulativeQty=${this.cumulativeQty}, cumulativeCost=${this.cumulativeCost}, currency=${this.currency})`;
+        return `CashPosition(symbol=${this.symbol}, account=${this.account}, cumulativeQty=${this.cumulativeQty}, cumulativeCost=${this.cumulativeCost}, averageCost=${this.averageCost}, currency=${this.currency})`;
     }
 }

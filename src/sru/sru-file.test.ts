@@ -578,6 +578,93 @@ describe('SRU Files', () => {
                 expect(stmt2.pnl).to.equal(-2_540);
             });
 
+            it('should calculate cumulative cost and quantity correctly with multiple buy/sell trades', () => {
+                // create 6 trades based on cash_trade2.xml
+                const t1 = _createCashTrade({
+                    symbol: 'USD/SEK',
+                    direction: 'BUY',
+                    quantity: 1000,
+                    entryPrice: 10.0,
+                    proceeds: -10_000,
+                    commission: -2,
+                    commissionCurrency: 'USD',
+                    tradeCurrency: 'SEK',
+                    entryDateTime: '2025-01-15 06:58:38',
+                });
+                const t2 = _createCashTrade({
+                    symbol: 'USD/SEK',
+                    direction: 'BUY',
+                    quantity: 1000,
+                    entryPrice: 20.0,
+                    proceeds: -20_000,
+                    commission: -2,
+                    commissionCurrency: 'USD',
+                    tradeCurrency: 'SEK',
+                    entryDateTime: '2025-01-15 08:59:13',
+                });
+                const t3 = _createCashTrade({
+                    symbol: 'USD/SEK',
+                    direction: 'SELL',
+                    quantity: -1000,
+                    exitPrice: 25.0,
+                    proceeds: 25_000,
+                    commission: -2,
+                    commissionCurrency: 'USD',
+                    tradeCurrency: 'SEK',
+                    exitDateTime: '2025-01-16 05:55:25',
+                });
+                const t4 = _createCashTrade({
+                    symbol: 'USD/SEK',
+                    direction: 'BUY',
+                    quantity: 1000,
+                    entryPrice: 10.0,
+                    proceeds: -10_000,
+                    commission: -2,
+                    commissionCurrency: 'USD',
+                    tradeCurrency: 'SEK',
+                    entryDateTime: '2025-01-16 06:58:38',
+                });
+                const t5 = _createCashTrade({
+                    symbol: 'USD/SEK',
+                    direction: 'BUY',
+                    quantity: 1000,
+                    entryPrice: 15.0,
+                    proceeds: -15_000,
+                    commission: -2,
+                    commissionCurrency: 'USD',
+                    tradeCurrency: 'SEK',
+                    entryDateTime: '2025-01-16 06:58:38',
+                });
+                const t6 = _createCashTrade({
+                    symbol: 'USD/SEK',
+                    direction: 'SELL',
+                    quantity: -1000,
+                    exitPrice: 10.0,
+                    proceeds: 10_000,
+                    commission: -2,
+                    commissionCurrency: 'USD',
+                    tradeCurrency: 'SEK',
+                    exitDateTime: '2025-01-16 06:58:38',
+                });
+
+                const sru = new SRUFile(fxRates, [t1, t2, t3, t4, t5, t6]);
+
+                const cashStatements = sru.getCashStatements();
+
+                // should have 2 cash statements
+                expect(cashStatements).to.have.lengthOf(2);
+
+                // As verified in "test\fixtures\Omkostnadsbelopp_USDSEK_2026-05-03.json"
+                // CumQty=2000
+                // CumCost=26707 (proceeds + comm.)
+                // AvgPrice=13.353333333333333
+                const pos = sru.getCashPosition('USD/SEK');
+                expect(pos).to.not.be.undefined;
+                expect(pos!.cumulativeQty).to.equal(2000);
+                expect(pos!.cumulativeCost).to.equal(26706.67);
+                expect(pos!.averageCost).to.equal(13.35334);
+            });
+
             it('should handle sell trade with no initial position', () => {
                 const t1 = new TradeType({
                     symbol: 'USD/SEK',

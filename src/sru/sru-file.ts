@@ -283,7 +283,7 @@ export class SRUFile {
                 );
             }
             const pos = this.cashPositions.get(symbol)!;
-            //logger.debug(`${pos.symbol}: Using cash Position qty=${pos.cumulativeQty}, cost=${pos.cumulativeCost}, currency=${pos.currency}, for trade='${trade}'`);
+            //logger.debug(`${trade.quantity > 0 ? 'BUY' : 'SELL'} '${trade}`);
 
             //TODO: use field 'buySell' instead of checking?
             if (trade.quantity > 0) {
@@ -291,6 +291,7 @@ export class SRUFile {
                 pos.cumulativeCost += totalCost;
                 pos.cumulativeQty += trade.quantity;
                 // No statement needed
+                //logger.debug(`BUY: Position after trade: ${pos}`);
             } else if (trade.quantity < 0) {
                 // if saleQty is larger than current position, then we skip this trade
                 if (Math.abs(trade.quantity) > pos.cumulativeQty) {
@@ -308,9 +309,7 @@ export class SRUFile {
                 const saleQty = Math.abs(trade.quantity);
                 const avgCost = pos.averageCost;
                 pos.cumulativeQty -= saleQty;
-                //TODO: or pos.cumulativeCost -= saleQty * avgCost ?
-                //TODO: or pos.cumulativeCost -= saleQty * trade.exitPrice?
-                pos.cumulativeCost = pos.cumulativeQty * avgCost;
+                pos.cumulativeCost -= saleQty * avgCost;
 
                 // Create statement (all in SEK)
                 const received = saleQty * trade.exitPrice;
@@ -335,6 +334,7 @@ export class SRUFile {
                     dateTime.substring(0, 10),
                     K4_SEC_TYPE.CASH,
                 );
+                //logger.debug(`SELL: Position after trade: ${pos}`);
 
                 if (Math.abs(saleQty) < 1) {
                     logger.warn(`Cash trade with quantity < 1: ${trade}. Force setting quantity to 1 in statement.`);

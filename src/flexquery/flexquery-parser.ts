@@ -252,6 +252,7 @@ export class FlexQueryParser {
                         t.entryDateTime = this.toDateString(item._dateTime);
                         t.direction = item._quantity > 0 ? 'LONG' : 'SHORT';
                     }
+
                     this.#trades.push(t);
                 } else {
                     logger.warn(

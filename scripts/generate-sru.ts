@@ -31,6 +31,7 @@ import { SRUFile, SRUInfo, generateBlanketterFileData, totalsFileData } from '..
 import { parseInitialCashPositionsFile } from '../src/sru/sru-utils';
 import { K4_TYPE, Statement } from '../src/types/statement';
 import { TradeType } from '../src/types/trade';
+import { logger } from '../src/logging';
 
 dotenv.config();
 
@@ -254,6 +255,13 @@ const main = async () => {
             `\nNote: ${packages.length} blanketter files generated. Rename each to 'blanketter.sru' and upload separately.`,
         );
     }
+    logger.info(`[${account}] SRU generation completed`);
+    logger.info(`Wrote files: info.sru`);
+    // log which files were written
+    for (let i = 0; i < packages.length; i++) {
+        logger.info(`Wrote file: blanketter${i}.sru`);
+    }
+    logger.info(`Wrote file: totals.txt`);
 };
 
 main().catch((err) => {

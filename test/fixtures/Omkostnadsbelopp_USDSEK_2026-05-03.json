@@ -1,0 +1,79 @@
+{
+    "version": "1.0.23",
+    "currentAktieName": "USDSEK",
+    "items": [
+        {
+            "createdTime": "1777805046881",
+            "currentAction": "KOP",
+            "currentAmount": "1000",
+            "currentDate": "2026-05-03",
+            "currentInkopsprisEllerOmkostnadsbelopp": "10020",
+            "totalAmount": 1000,
+            "totaltOmkostnadsbelopp": 10020,
+            "genomsnittligtOmkostnadsbelopp": 10.02,
+            "expanded": false,
+            "enableShowReulstButton": false
+        },
+        {
+            "createdTime": "1777805081531",
+            "currentAction": "KOP",
+            "currentAmount": "1000",
+            "currentDate": "2026-05-03",
+            "currentInkopsprisEllerOmkostnadsbelopp": "20020",
+            "totalAmount": 2000,
+            "totaltOmkostnadsbelopp": 30040,
+            "genomsnittligtOmkostnadsbelopp": 15.02,
+            "expanded": false,
+            "enableShowReulstButton": false
+        },
+        {
+            "createdTime": "1777805145633",
+            "currentAction": "FORSALJNING",
+            "currentAmount": "1000",
+            "currentDate": "2026-05-03",
+            "currentInkopsprisEllerOmkostnadsbelopp": "15020",
+            "totalAmount": 1000,
+            "totaltOmkostnadsbelopp": 15020,
+            "genomsnittligtOmkostnadsbelopp": 15.02,
+            "expanded": false,
+            "enableShowReulstButton": true
+        },
+        {
+            "createdTime": "1777805251405",
+            "currentAction": "KOP",
+            "currentAmount": "1000",
+            "currentDate": "2026-05-03",
+            "currentInkopsprisEllerOmkostnadsbelopp": "10020",
+            "totalAmount": 2000,
+            "totaltOmkostnadsbelopp": 25040,
+            "genomsnittligtOmkostnadsbelopp": 12.52,
+            "expanded": false,
+            "enableShowReulstButton": false
+        },
+        {
+            "createdTime": "1777805556785",
+            "currentAction": "KOP",
+            "currentAmount": "1000",
+            "currentDate": "2026-05-03",
+            "currentInkopsprisEllerOmkostnadsbelopp": "15020",
+            "totalAmount": 3000,
+            "totaltOmkostnadsbelopp": 40060,
+            "genomsnittligtOmkostnadsbelopp": 13.353333333333333,
+            "expanded": false,
+            "enableShowReulstButton": false
+        },
+        {
+            "createdTime": "1777805595593",
+            "currentAction": "FORSALJNING",
+            "currentAmount": "1000",
+            "currentDate": "2026-05-03",
+            "currentInkopsprisEllerOmkostnadsbelopp": "13353.333333333334",
+            "totalAmount": 2000,
+            "totaltOmkostnadsbelopp": 26706.666666666668,
+            "genomsnittligtOmkostnadsbelopp": 13.353333333333333,
+            "expanded": false,
+            "enableShowReulstButton": true
+        }
+    ],
+    "cc": "719a105c9553822be5db9a266cb02970c20caa5304f865956b02505b8cc0ca06"
+}
