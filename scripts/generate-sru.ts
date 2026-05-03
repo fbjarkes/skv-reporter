@@ -16,7 +16,7 @@
  * Output files are written to the current working directory:
  *   info.sru
  *   blanketter0.sru, blanketter1.sru, ...  (rename each to blanketter.sru when uploading)
- *   totals.txt  (summary with SKV form instructions)
+ *   summary.md  (Markdown summary with K4 totals and Inkomstdeklaration 1 instructions)
  */
 
 import * as fs from 'fs/promises';
@@ -27,7 +27,7 @@ import { parseArgs } from 'node:util';
 
 import { FlexQueryParser } from '../src/flexquery/flexquery-parser';
 import { NNParser } from '../src/flexquery/nn-parser';
-import { SRUFile, SRUInfo, generateBlanketterFileData, totalsFileData } from '../src/sru/sru-file';
+import { SRUFile, SRUInfo, generateBlanketterFileData, summaryFileData, totalsFileData } from '../src/sru/sru-file';
 import { parseInitialCashPositionsFile } from '../src/sru/sru-utils';
 import { K4_TYPE, Statement } from '../src/types/statement';
 import { TradeType } from '../src/types/trade';
@@ -220,14 +220,14 @@ const main = async () => {
         console.log(`Wrote: ${filename}  (${pkg.statements.length} statements)`);
     }
 
-    // Write totals summary
+    // Write summary
     const allTotals = packages.flatMap((p) => p.totals);
-    const totalsData = totalsFileData(allTotals);
-    await fs.writeFile('totals.txt', totalsData.join('\n'), 'utf8');
-    console.log('Wrote: totals.txt');
+    const allStatements: Statement[] = packages.flatMap((p) => p.statements);
+    const summaryLines = summaryFileData(allTotals, allStatements, sruInfo);
+    await fs.writeFile('summary.md', summaryLines.join('\n'), 'utf8');
+    console.log('Wrote: summary.md');
 
     // Print statement summary
-    const allStatements: Statement[] = packages.flatMap((p) => p.statements);
     let totalPnl = 0,
         totalLoss = 0,
         totalProfit = 0,
@@ -255,13 +255,14 @@ const main = async () => {
             `\nNote: ${packages.length} blanketter files generated. Rename each to 'blanketter.sru' and upload separately.`,
         );
     }
+    const res = totalsFileData(allTotals);
     logger.info(`[${account}] SRU generation completed`);
     logger.info(`Wrote files: info.sru`);
     // log which files were written
     for (let i = 0; i < packages.length; i++) {
         logger.info(`Wrote file: blanketter${i}.sru`);
     }
-    logger.info(`Wrote file: totals.txt`);
+    logger.info(`Wrote file: summary.md`);
 };
 
 main().catch((err) => {

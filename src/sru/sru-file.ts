@@ -139,6 +139,254 @@ export const totalsFileData = (totals: K4TypeTotals[]): string[] => {
     return data.flat();
 };
 
+type K4TypeMeta = {
+    letter: string;
+    title: string;
+    description: string;
+    sruSalesCode: string;
+    sruCostCode: string;
+    sruProfitCode: string;
+    sruLossCode: string;
+    incomeDeclarationProfit: string;
+    incomeDeclarationLoss: string;
+    profitNoteYellow: string;
+    lossNoteYellow: string;
+    maxRows: number;
+    colAntal: string;
+    colBeteckning: string;
+    colForsaljning: string;
+    colOmkostnad: string;
+};
+
+const K4_TYPE_META: Partial<Record<K4_TYPE, K4TypeMeta>> = {
+    [K4_TYPE.TYPE_A]: {
+        letter: 'A',
+        title: 'Aktier, aktieindexobligationer, aktieoptioner m.m.',
+        description: 'Marknadsnoterade aktier, aktieindexobligationer, aktieoptioner m.m.',
+        sruSalesCode: '3300',
+        sruCostCode: '3301',
+        sruProfitCode: '3304',
+        sruLossCode: '3305',
+        incomeDeclarationProfit: 'p. 7.4',
+        incomeDeclarationLoss: 'p. 8.3',
+        profitNoteYellow:
+            'Om du har en förifylld vinst från fondandelar m.m. i det **gula** fältet vid p. 7.4 ska du lägga ihop den med summa vinst och fylla i totalbeloppet i den vita rutan.',
+        lossNoteYellow:
+            'Om du har en förifylld förlust från fondandelar i det **gula** fältet vid p. 8.3 ska du lägga ihop den med summa förlust och fylla i totalbeloppet i den vita rutan.',
+        maxRows: MAX_TYPE_A_STATEMENTS,
+        colAntal: 'Antal',
+        colBeteckning: 'Beteckning',
+        colForsaljning: 'Försäljningspris',
+        colOmkostnad: 'Omkostnadsbelopp',
+    },
+    [K4_TYPE.TYPE_C]: {
+        letter: 'C',
+        title: 'Obligationer, valuta m.m.',
+        description: 'Marknadsnoterade obligationer, valuta m.m.',
+        sruSalesCode: '3400',
+        sruCostCode: '3401',
+        sruProfitCode: '3403',
+        sruLossCode: '3404',
+        incomeDeclarationProfit: 'p. 7.2',
+        incomeDeclarationLoss: 'p. 8.1',
+        profitNoteYellow:
+            'Om du har förifyllda ränteinkomster, utdelningar m.m. i det **gula** fältet vid p. 7.2 ska du lägga ihop dessa med summa vinst och fylla i totalbeloppet i den vita rutan.',
+        lossNoteYellow:
+            'Om du har förifyllda ränteutgifter m.m. i det **gula** fältet vid p. 8.1 ska du lägga ihop dessa med summa förlust och fylla i totalbeloppet i den vita rutan.',
+        maxRows: MAX_TYPE_C_STATEMENTS,
+        colAntal: 'Antal/Belopp',
+        colBeteckning: 'Beteckning/Valutakod',
+        colForsaljning: 'Försäljningspris omräknat till SEK',
+        colOmkostnad: 'Omkostnadsbelopp omräknat till SEK',
+    },
+    [K4_TYPE.TYPE_D]: {
+        letter: 'D',
+        title: 'Övriga värdepapper (råvaror, kryptovalutor) m.m.',
+        description: 'Övriga värdepapper, andra tillgångar (kapitalplaceringar t.ex. råvaror, kryptovalutor) m.m.',
+        sruSalesCode: '3500',
+        sruCostCode: '3501',
+        sruProfitCode: '3503',
+        sruLossCode: '3504',
+        incomeDeclarationProfit: 'p. 7.5',
+        incomeDeclarationLoss: 'p. 8.4',
+        profitNoteYellow:
+            'Om du har en förifylld vinst från ej marknadsnoterade fondandelar i det **gula** fältet vid p. 7.5 ska du lägga ihop den med summa vinst och fylla i totalbeloppet i den vita rutan.',
+        lossNoteYellow:
+            'Om du har en förifylld förlust från ej marknadsnoterade fondandelar i det **gula** fältet vid p. 8.4 ska du lägga ihop den med summa förlust och fylla i totalbeloppet i den vita rutan.',
+        maxRows: MAX_TYPE_D_STATEMENTS,
+        colAntal: 'Antal/Belopp',
+        colBeteckning: 'Beteckning/Valutakod',
+        colForsaljning: 'Försäljningspris omräknat till SEK',
+        colOmkostnad: 'Omkostnadsbelopp omräknat till SEK',
+    },
+};
+
+const fmtSEK = (n: number): string =>
+    Math.round(n)
+        .toLocaleString('sv-SE')
+        .replace(/\u00a0/g, ' ') + ' SEK';
+
+const fmtNum = (n: number): string => n.toLocaleString('sv-SE', { maximumFractionDigits: 2 });
+
+const exampleFormTable = (meta: K4TypeMeta, statements: Statement[]): string[] => {
+    const rows = statements.slice(0, meta.maxRows);
+    const lines: string[] = [
+        `> **Exempelformulär** — visar de första ${rows.length} av ${statements.length} deklarationsrad(er) (max ${meta.maxRows} per K4-blankett).`,
+        ``,
+        `| # | ${meta.colAntal} | ${meta.colBeteckning} | ${meta.colForsaljning} | ${meta.colOmkostnad} | Vinst | Förlust |`,
+        `|---|---|---|---|---|---|---|`,
+    ];
+    rows.forEach((s, i) => {
+        const vinst = s.pnl > 0 ? fmtSEK(s.pnl) : '';
+        const forlust = s.pnl < 0 ? fmtSEK(Math.abs(s.pnl)) : '';
+        lines.push(
+            `| ${i + 1} | ${s.quantity} | ${s.symbol} | ${fmtSEK(s.received)} | ${fmtSEK(
+                s.paid,
+            )} | ${vinst} | ${forlust} |`,
+        );
+    });
+    // Fill remaining slots with empty rows
+    for (let i = rows.length; i < meta.maxRows; i++) {
+        lines.push(`| ${i + 1} | | | | | | |`);
+    }
+    // Summary row
+    const sumReceived = rows.reduce((s, r) => s + r.received, 0);
+    const sumPaid = rows.reduce((s, r) => s + r.paid, 0);
+    const sumVinst = rows.filter((r) => r.pnl > 0).reduce((s, r) => s + r.pnl, 0);
+    const sumForlust = rows.filter((r) => r.pnl < 0).reduce((s, r) => s + Math.abs(r.pnl), 0);
+    lines.push(
+        `|---|---|---|---|---|---|---|`,
+        `| **Summa** | | | **${fmtSEK(sumReceived)}** (\`${meta.sruSalesCode}\`) | **${fmtSEK(sumPaid)}** (\`${
+            meta.sruCostCode
+        }\`) | **${fmtSEK(sumVinst)}** (\`${meta.sruProfitCode}\`) | **${fmtSEK(sumForlust)}** (\`${
+            meta.sruLossCode
+        }\`) |`,
+    );
+    return lines;
+};
+
+export const summaryFileData = (totals: K4TypeTotals[], statements: Statement[], info?: SRUInfo): string[] => {
+    const taxYear = info?.taxYear ?? '';
+    const generatedAt = format(new Date(), 'yyyy-MM-dd HH:mm');
+
+    const lines: string[] = [
+        `# K4 Sammanfattning — Taxeringsår ${taxYear}`,
+        ``,
+        `> Genererad: ${generatedAt}`,
+        ``,
+        `---`,
+        ``,
+        `## Innehåll`,
+        ``,
+    ];
+
+    totals.forEach((t, i) => {
+        const meta = K4_TYPE_META[t.type];
+        if (!meta) return;
+        lines.push(`${i + 1}. [Sektion ${meta.letter} — ${meta.title}](#sektion-${meta.letter.toLowerCase()})`);
+    });
+    lines.push(``, `---`, ``);
+
+    for (const t of totals) {
+        const meta = K4_TYPE_META[t.type];
+        if (!meta) continue;
+        const grossProfit = t.totalProfit;
+        const grossLoss = Math.abs(t.totalLoss);
+        const netPnl = t.totalPnl;
+
+        const sectionStatements = statements.filter((s) => s.type === t.type);
+        const wins = sectionStatements.filter((s) => s.pnl > 0).length;
+        const losses = sectionStatements.filter((s) => s.pnl < 0).length;
+        const flat = sectionStatements.length - wins - losses;
+        const decided = wins + losses;
+        const winRate = decided > 0 ? (wins / decided) * 100 : 0;
+        const avgPnl = sectionStatements.length > 0 ? netPnl / sectionStatements.length : 0;
+        const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : undefined;
+
+        lines.push(
+            `## Sektion ${meta.letter} — ${meta.title}`,
+            ``,
+            `> ${meta.description}`,
+            ``,
+            `### Summering`,
+            ``,
+            `| Fält                | SRU-kod | Belopp          |`,
+            `|---------------------|---------|-----------------|`,
+            `| Försäljningspris    | \`${meta.sruSalesCode}\`  | ${fmtSEK(t.totalReceived)} |`,
+            `| Omkostnadsbelopp    | \`${meta.sruCostCode}\`  | ${fmtSEK(t.totalPaid)}     |`,
+            `| **Summa vinst (brutto)**     | \`${meta.sruProfitCode}\`  | **${fmtSEK(grossProfit)}**      |`,
+            `| **Summa förlust (brutto)**   | \`${meta.sruLossCode}\`  | **${fmtSEK(grossLoss)}**        |`,
+            `| Nettoresultat (PnL) | -       | ${fmtSEK(netPnl)} |`,
+            ``,
+            `_Antal deklarationsrader: ${t.totalStatements}_`,
+            ``,
+            `### Nyckeltal`,
+            ``,
+            `| Metric | Varde |`,
+            `|--------|-------|`,
+            `| Vinstaffarer | ${wins} |`,
+            `| Forlustaffarer | ${losses} |`,
+            `| Nollresultat | ${flat} |`,
+            `| Win rate | ${fmtNum(winRate)} % |`,
+            `| Snitt-PnL per affar | ${fmtSEK(avgPnl)} |`,
+            `| Profit factor | ${profitFactor !== undefined ? fmtNum(profitFactor) : 'N/A'} |`,
+            ``,
+        );
+
+        if (sectionStatements.length > 0) {
+            lines.push(
+                `### Exempelformulär (första K4-blanketten)`,
+                ``,
+                ...exampleFormTable(meta, sectionStatements),
+                ``,
+            );
+        }
+
+        lines.push(
+            `### Inkomstdeklaration 1 — Instruktioner`,
+            ``,
+            `| Resultat        | Belopp          | Fyll i vid      |`,
+            `|-----------------|-----------------|-----------------|`,
+            `| Summa vinst (brutto)     | ${fmtSEK(grossProfit)} | **${meta.incomeDeclarationProfit}** (vit ruta) |`,
+            `| Summa forlust (brutto)   | ${fmtSEK(grossLoss)}   | **${meta.incomeDeclarationLoss}** (vit ruta) |`,
+            `| Nettoresultat (extra info) | ${fmtSEK(netPnl)} | - |`,
+            ``,
+            `> **OBS vinst:** ${meta.profitNoteYellow}`,
+            ``,
+            `> **OBS förlust:** ${meta.lossNoteYellow}`,
+            ``,
+            `---`,
+            ``,
+        );
+    }
+
+    // Grand total across all sections
+    if (totals.length > 1) {
+        const grandProfit = totals.reduce((s, t) => s + t.totalProfit, 0);
+        const grandLoss = totals.reduce((s, t) => s + Math.abs(t.totalLoss), 0);
+        const grandNet = grandProfit - grandLoss;
+        lines.push(
+            `## Totalt — Alla sektioner`,
+            ``,
+            `| Sektion | Vinst | Förlust | Netto |`,
+            `|---------|-------|---------|-------|`,
+        );
+        for (const t of totals) {
+            const meta = K4_TYPE_META[t.type];
+            if (!meta) continue;
+            const p = Math.max(0, t.totalPnl);
+            const l = Math.abs(Math.min(0, t.totalPnl));
+            lines.push(`| ${meta.letter} — ${meta.title} | ${fmtSEK(p)} | ${fmtSEK(l)} | ${fmtSEK(p - l)} |`);
+        }
+        lines.push(
+            `| **TOTALT** | **${fmtSEK(grandProfit)}** | **${fmtSEK(grandLoss)}** | **${fmtSEK(grandNet)}** |`,
+            ``,
+        );
+    }
+
+    return lines;
+};
+
 export const validateSRUInfo = (info?: SRUInfo) => {
     if (!info) throw Error('Missing SRU info');
     if (!info.taxYear) throw Error('Invalid SRU info: taxYear');
@@ -580,7 +828,10 @@ export class SRUFile {
             const pkg = packages[i];
             logger.info(
                 `${this.account}: Package ${i + 1} has ${pkg.statements.length} statements, with totals: ${pkg.totals
-                    .map((t) => `${t.type} PnL: ${t.totalPnl}, Statements: ${t.totalStatements}`)
+                    .map(
+                        (t) =>
+                            `${t.type} Gross profits: ${t.totalProfit}, Gross losses: ${t.totalLoss} (PnL: ${t.totalPnl}), Statements: ${t.totalStatements}`,
+                    )
                     .join(' | ')}`,
             );
         }
