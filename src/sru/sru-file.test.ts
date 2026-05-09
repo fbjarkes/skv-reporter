@@ -813,6 +813,10 @@ describe('SRU Files', () => {
                 // e.g. cash_trade3.xml
             });
         });
+
+        describe('TYPE_D (Crypto)', () => {
+            //Use TradeTypes based on kraken_crvusd_trades.csv as input and verify all Statements and final "Cash" position is correct
+        });
     });
 
     describe('K4 forms', () => {
