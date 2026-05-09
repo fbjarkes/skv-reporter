@@ -1,0 +1,10 @@
+txid,ordertxid,pair,aclass,subclass,time,type,ordertype,price,cost,fee,vol,margin,misc,ledgers,posttxid,posstatuscode,cprice,ccost,cfee,cvol,cmargin,net,trades
+BUY-AAA,ORDER-AAA,BTC/USD,forex,crypto,2025-01-10,buy,limit,10,100,0.1,10,33.3333,,LEDGER-AAA,POS-AAA,closed,12,120,0.2,10,40,19.7,SELL-AAA
+SELL-AAA,ORDER-SELL-AAA,BTC/USD,forex,crypto,2025-01-20,sell,limit,12,120,0.2,10,40,closing,LEDGER-S-AAA,BUY-AAA,,,,,,,,
+BUY-BBB,ORDER-BBB,ETH/USD,forex,crypto,2025-02-01,buy,limit,5,50,0.05,10,16.6667,,LEDGER-BBB,POS-BBB,closed,4,40,0.1,10,13.3333,-10.15,SELL-BBB
+SELL-BBB,ORDER-SELL-BBB,ETH/USD,forex,crypto,2025-02-05,sell,limit,4,40,0.1,10,13.3333,closing,LEDGER-S-BBB,BUY-BBB,,,,,,,,
+BUY-CCC,ORDER-CCC,SOL/USD,forex,crypto,2025-03-01,buy,limit,2.5,25,0.025,10,8.3333,,LEDGER-CCC,POS-CCC,closed,2.8,28,0.028,10,9.3333,2.947,SELL-CCC-1,SELL-CCC-2
+SELL-CCC-1,ORDER-SELL-CCC-1,SOL/USD,forex,crypto,2025-03-10,sell,limit,2.8,16.8,0.0168,6,5.6,closing,LEDGER-S-CCC-1,BUY-CCC,,,,,,,,
+SELL-CCC-2,ORDER-SELL-CCC-2,SOL/USD,forex,crypto,2025-03-12,sell,limit,2.8,11.2,0.0112,4,3.7333,closing,LEDGER-S-CCC-2,BUY-CCC,,,,,,,,
+BUY-DDD,ORDER-DDD,XRP/USD,forex,crypto,2025-04-01,buy,limit,0.5001,0.5001,0.0001,1,0.1667,,LEDGER-DDD,POS-DDD,closed,0.4001,0.4001,0.0001,1,0.1334,-0.1002,SELL-DDD
+SELL-DDD,ORDER-SELL-DDD,XRP/USD,forex,crypto,2025-04-02,sell,limit,0.4001,0.4001,0.0001,1,0.1334,closing,LEDGER-S-DDD,BUY-DDD,,,,,,,,

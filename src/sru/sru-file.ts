@@ -504,6 +504,7 @@ export class SRUFile {
         let id = 0;
 
         const cashTrades = this.trades.filter((trade) => trade.securityType === 'CASH');
+        logger.debug(`Processing ${cashTrades.length} cash trades...`);
         cashTrades.forEach((trade: TradeType) => {
             // TODO: direction field uses 'LONG'/'SHORT' (not 'BUY'/'SELL'); replace with `trade.quantity > 0` for entry
             // vs exit datetime selection, or map _buySell explicitly in the parser to avoid wrong datetime / FX lookup.
@@ -628,6 +629,7 @@ export class SRUFile {
                 }
                 if (trade.tradeCurrency !== 'SEK') {
                     const key = trade.exitDateTime.substring(0, 10);
+
                     rate = this.fxRates.get(key)?.get('USD/SEK');
                     if (!rate) {
                         throw new Error(`Missing USD/SEK rate for ${key}`);

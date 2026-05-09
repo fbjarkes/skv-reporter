@@ -26,6 +26,7 @@ import * as dotenv from 'dotenv';
 import { parseArgs } from 'node:util';
 
 import { FlexQueryParser } from '../src/flexquery/flexquery-parser';
+import { KrakenParser } from '../src/flexquery/kraken-parser';
 import { NNParser } from '../src/flexquery/nn-parser';
 import { SRUFile, SRUInfo, generateBlanketterFileData, summaryFileData, totalsFileData } from '../src/sru/sru-file';
 import { parseInitialCashPositionsFile } from '../src/sru/sru-utils';
@@ -170,6 +171,34 @@ const parseNNInput = (
     return { trades, rates };
 };
 
+const parseKrakenInput = (
+    fileData: string,
+    account?: string,
+): { trades: TradeType[]; rates: Map<string, Map<string, number>> } => {
+    const krakenParser = new KrakenParser(account);
+    const stats = krakenParser.parse(fileData);
+
+    console.log('\n--- Parse summary ---');
+    console.log(`Trades:       ${stats.tradesCount} (winners: ${stats.winnersCount}, losers: ${stats.losersCount})`);
+    console.log(
+        `  STK: ${stats.stkTradesCount}  OPT: ${stats.optTradesCount}  FUT: ${stats.futTradesCount}  Non-USD: ${stats.tradesNonUSDCount}`,
+    );
+    console.log(`Trade PnL:    ${stats.tradePnl.toFixed(2)} USD  (non-USD: ${stats.tradePnlNonUsd.toFixed(2)})`);
+    console.log(`Commissions:  ${stats.totalComm.toFixed(2)} USD`);
+    console.log(`FX mappings:  ${stats.ratesCount}`);
+    if (stats.tradesUnhandledCount > 0) {
+        console.warn(`Unhandled:    ${stats.tradesUnhandledCount} trades skipped`);
+    }
+
+    const trades = krakenParser.getAllTrades();
+    const rates = krakenParser.getConversionRates();
+    console.log('=====');
+    for (const trade of trades) {
+        console.log(trade.toString());
+    }
+    return { trades, rates };
+};
+
 const parseBrokerInput = (
     broker: Broker,
     fileData: string,
@@ -181,7 +210,7 @@ const parseBrokerInput = (
         case 'nordnet':
             return parseNNInput(fileData, account);
         case 'kraken':
-            throw new Error('Broker kraken is not implemented yet');
+            return parseKrakenInput(fileData, account);
     }
 };
 
